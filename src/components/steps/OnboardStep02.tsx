@@ -49,18 +49,19 @@ export function OnboardStep02({ data, onChange, onBack, onNext }: OnboardStep02P
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <div className="mb-6">
-        <h2 className="text-[24px] sm:text-[26px] font-semibold text-black leading-normal">
+      <div className="mb-4">
+        <p className="imdx-kicker">IMDX / STEP 02</p>
+        <h2 className="mt-0.5 text-[19px] sm:text-[21px] text-[#102529] leading-tight">
           Authorized Representative Details
         </h2>
-        <p className="mt-1.5 text-[16px] sm:text-[18px] text-[#808080]">
+        <p className="mt-1 text-[13px] sm:text-[14px] text-[#59666d]">
           Provide the details of the person authorized to represent your organization and manage its
           participation in IMDX.
         </p>
       </div>
 
-      <div className="bg-white border border-[#c1c1c1] rounded-[11px] p-6 sm:p-11">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
+      <div className="imdx-card rounded-[14px] p-5 sm:p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
           <TextField
             id="rep-name"
             label="Name"
@@ -97,7 +98,7 @@ export function OnboardStep02({ data, onChange, onBack, onNext }: OnboardStep02P
             <FieldLabel htmlFor="rep-phone" label="Phone Number" required />
             <PhoneInput
               id="rep-phone"
-              heightClass="h-[64px]"
+              heightClass="h-[40px]"
               countryCode={data.countryCode}
               phoneNumber={data.phoneNumber}
               onCountryCodeChange={(code) => updateField('countryCode', code)}
@@ -107,8 +108,8 @@ export function OnboardStep02({ data, onChange, onBack, onNext }: OnboardStep02P
           </div>
         </div>
 
-        <div className="mt-8 space-y-4">
-          <label className="flex items-center gap-4 cursor-pointer select-none">
+        <div className="mt-5 pt-4 border-t border-[#0f766e]/15 space-y-3">
+          <label className="flex items-center gap-3 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={data.isDirectorOrOfficer}
@@ -116,14 +117,14 @@ export function OnboardStep02({ data, onChange, onBack, onNext }: OnboardStep02P
                 onChange({ ...data, isDirectorOrOfficer: e.target.checked });
                 if (errors.declarations) setErrors((prev) => ({ ...prev, declarations: '' }));
               }}
-              className="size-[30px] shrink-0 rounded-[5px] border border-[#c1c1c1] accent-[#32c4a6] cursor-pointer"
+              className="size-[18px] shrink-0 rounded-[4px] border border-[#bfd8d4] accent-[#00a5c3] cursor-pointer"
             />
-            <span className="text-[17px] sm:text-[18px] text-[#0f0f0f]">
+            <span className="text-[13.5px] sm:text-[14px] text-[#102529]">
               I am director or officer of this organization
             </span>
           </label>
 
-          <label className="flex items-center gap-4 cursor-pointer select-none">
+          <label className="flex items-center gap-3 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={data.isAuthorizedToBind}
@@ -131,15 +132,15 @@ export function OnboardStep02({ data, onChange, onBack, onNext }: OnboardStep02P
                 onChange({ ...data, isAuthorizedToBind: e.target.checked });
                 if (errors.declarations) setErrors((prev) => ({ ...prev, declarations: '' }));
               }}
-              className="size-[30px] shrink-0 rounded-[5px] border border-[#c1c1c1] accent-[#32c4a6] cursor-pointer"
+              className="size-[18px] shrink-0 rounded-[4px] border border-[#bfd8d4] accent-[#00a5c3] cursor-pointer"
             />
-            <span className="text-[17px] sm:text-[18px] text-[#0f0f0f]">
+            <span className="text-[13.5px] sm:text-[14px] text-[#102529]">
               I am authorized to bind this organization to these terms
             </span>
           </label>
 
           {errors.declarations && (
-            <p className="text-[13px] text-[#dc2626] pt-1">{errors.declarations}</p>
+            <p className="text-[12px] text-[#dc2626] pt-0.5">{errors.declarations}</p>
           )}
         </div>
       </div>

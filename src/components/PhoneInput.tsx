@@ -18,23 +18,23 @@ export function PhoneInput({
   phoneNumber,
   onCountryCodeChange,
   onPhoneNumberChange,
-  heightClass = 'h-[57px]',
+  heightClass = 'h-[40px]',
   placeholder = 'Enter your phone number',
   error,
 }: PhoneInputProps) {
   return (
     <div>
       <div
-        className={`flex items-center w-full ${heightClass} rounded-[11px] border bg-white px-3 transition-colors focus-within:border-[#002456] ${
-          error ? 'border-[#dc2626]' : 'border-[#c1c1c1]'
+        className={`flex items-center w-full ${heightClass} rounded-[9px] border bg-white/95 px-2.5 transition-all focus-within:border-[#008fa7] focus-within:ring-4 focus-within:ring-[#45c0b2]/15 ${
+          error ? 'border-[#dc2626]' : 'border-[#c5dbd8]'
         }`}
       >
-        <div className="relative flex items-center bg-[#ededed] rounded-[8px] h-[36px] shrink-0">
+        <div className="relative flex items-center bg-[#e5faf6] border border-[#45c0b2]/25 rounded-[6px] h-[28px] shrink-0">
           <select
             aria-label="Country code"
             value={countryCode}
             onChange={(e) => onCountryCodeChange(e.target.value)}
-            className="appearance-none bg-transparent pl-2.5 pr-7 h-full text-[16px] sm:text-[17px] text-[#0f0f0f] cursor-pointer focus:outline-none"
+            className="appearance-none bg-transparent pl-2 pr-6 h-full text-[13px] text-[#102529] font-medium cursor-pointer focus:outline-none"
           >
             {COUNTRY_CODES.map((c) => (
               <option key={c.value} value={c.value}>
@@ -45,9 +45,9 @@ export function PhoneInput({
           <img
             src={chevronSm}
             alt=""
-            width={13}
-            height={7.5}
-            className="pointer-events-none absolute right-2.5 shrink-0"
+            width={11}
+            height={6}
+            className="pointer-events-none absolute right-2 shrink-0"
           />
         </div>
 
@@ -57,10 +57,10 @@ export function PhoneInput({
           value={phoneNumber}
           onChange={(e) => onPhoneNumberChange(e.target.value)}
           placeholder={placeholder}
-          className="ml-3 w-full bg-transparent text-[16px] sm:text-[18px] text-[#0f0f0f] placeholder:text-[#a3a3a3] focus:outline-none"
+          className="ml-2.5 w-full bg-transparent text-[14px] text-[#102529] placeholder:text-[#8ea1a5] focus:outline-none"
         />
       </div>
-      {error && <p className="mt-1.5 text-[13px] text-[#dc2626]">{error}</p>}
+      {error && <p className="mt-1 text-[12px] text-[#dc2626]">{error}</p>}
     </div>
   );
 }

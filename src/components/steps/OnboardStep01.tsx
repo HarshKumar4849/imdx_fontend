@@ -37,18 +37,19 @@ export function OnboardStep01({ data, onChange, onNext }: OnboardStep01Props) {
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <div className="mb-6">
-        <h2 className="text-[24px] sm:text-[26px] font-semibold text-black leading-normal">
+      <div className="mb-4">
+        <p className="imdx-kicker">IMDX / STEP 01</p>
+        <h2 className="mt-0.5 text-[19px] sm:text-[21px] text-[#102529] leading-tight">
           Onboard Organization form
         </h2>
-        <p className="mt-1.5 text-[16px] sm:text-[18px] text-[#808080]">
+        <p className="mt-1 text-[13px] sm:text-[14px] text-[#59666d]">
           Provide your organization details to complete your IMDX onboarding and set up your
           organization profile.
         </p>
       </div>
 
-      <div className="bg-white border border-[#c1c1c1] rounded-[20px] p-6 sm:p-11">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
+      <div className="imdx-card rounded-[14px] p-5 sm:p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
           <TextField
             id="org-legal-name"
             label="Legal Name"

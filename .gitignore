@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+IMDX/
 
 # Editor directories and files
 .vscode/*

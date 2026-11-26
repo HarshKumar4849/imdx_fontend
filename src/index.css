@@ -1,12 +1,478 @@
 @import "tailwindcss";
 
+@theme {
+  --font-sans: "Soehne", "Inter", Arial, sans-serif;
+  --font-serif: "Soehne", "Inter", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 @layer base {
   body {
     margin: 0;
-    background-color: #f8f8f8;
-    color: #0f0f0f;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #eefaf7;
+    color: #102529;
+    font-family: "Soehne", "Inter", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2 {
+    font-family: "Soehne", "Inter", Arial, sans-serif;
+    font-weight: 500;
+    letter-spacing: -0.025em;
+  }
+}
+
+.imdx-internal-canvas {
+  position: relative;
+  isolation: isolate;
+  background-color: #f3fbfa;
+  background-image:
+    linear-gradient(to right, rgba(0, 143, 167, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 143, 167, 0.055) 1px, transparent 1px),
+    radial-gradient(circle at 8% 85%, rgba(46, 132, 203, 0.24), transparent 48%),
+    radial-gradient(circle at 18% 24%, rgba(69, 192, 178, 0.16), transparent 44%),
+    radial-gradient(circle at 88% 12%, rgba(0, 165, 195, 0.1), transparent 40%);
+  background-size: 32px 32px, 32px 32px, auto, auto, auto;
+}
+
+.imdx-internal-canvas::before {
+  content: '';
+  position: fixed;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url('/images/tecmotiv-watermark.webp');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: min(460px, 46vw);
+  opacity: 0.24;
+  filter: brightness(0.72) contrast(1.32) saturate(1.18);
+  mix-blend-mode: multiply;
+  transition: left 200ms ease;
+}
+
+.imdx-internal-canvas.imdx-has-sidebar::before {
+  left: 60px;
+}
+
+@media (min-width: 768px) {
+  .imdx-internal-canvas.imdx-has-sidebar::before {
+    left: 215px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .imdx-internal-canvas.imdx-has-sidebar::before {
+    left: 230px;
+  }
+}
+
+.imdx-internal-canvas.imdx-has-sidebar.imdx-sidebar-collapsed::before,
+.imdx-internal-canvas.imdx-has-sidebar.imdx-sidebar-collapsed .imdx-backdrop-layer {
+  left: 60px;
+}
+
+.imdx-internal-canvas.imdx-has-sidebar .imdx-backdrop-layer {
+  left: 60px;
+}
+
+@media (min-width: 768px) {
+  .imdx-internal-canvas.imdx-has-sidebar .imdx-backdrop-layer {
+    left: 215px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .imdx-internal-canvas.imdx-has-sidebar .imdx-backdrop-layer {
+    left: 230px;
+  }
+}
+
+.imdx-backdrop-layer {
+  position: fixed;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  transition: left 200ms ease;
+}
+
+.imdx-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(64px);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.imdx-orb-a {
+  bottom: -12%;
+  left: -8%;
+  width: min(560px, 48vw);
+  height: min(560px, 48vw);
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.22) 0%, transparent 72%);
+  animation: imdx-orb-drift 15s ease-in-out infinite alternate;
+}
+
+.imdx-orb-b {
+  top: 8%;
+  left: 10%;
+  width: min(440px, 38vw);
+  height: min(440px, 38vw);
+  background: radial-gradient(circle, rgba(69, 192, 178, 0.18) 0%, transparent 72%);
+  animation: imdx-orb-drift 19s ease-in-out -6s infinite alternate;
+}
+
+@keyframes imdx-orb-drift {
+  from {
+    opacity: 0.72;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(22px, -18px, 0) scale(1.06);
+  }
+}
+
+@keyframes imdx-dash-flow {
+  from {
+    stroke-dashoffset: 160;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes imdx-node-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.16);
+  }
+}
+
+.imdx-dash-flow {
+  animation: imdx-dash-flow 12s linear infinite;
+}
+
+.imdx-dash-flow-reverse {
+  animation: imdx-dash-flow 14s linear infinite reverse;
+}
+
+.imdx-node-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: imdx-node-pulse 3.8s ease-in-out infinite;
+}
+
+.imdx-internal-canvas > :not(header):not(.fixed):not(.imdx-backdrop-layer) {
+  position: relative;
+  z-index: 1;
+}
+
+.imdx-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(219, 250, 243, 0.86) 0%,
+    rgba(232, 247, 254, 0.84) 52%,
+    rgba(225, 238, 255, 0.86) 100%
+  );
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(0, 143, 195, 0.24);
+  box-shadow: 0 14px 36px -18px rgba(0, 74, 153, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+:root {
+  --ease-reveal: cubic-bezier(0.2, 0.75, 0.2, 1);
+}
+
+.imdx-card-interactive {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    rgba(222, 250, 244, 0.90) 0%,
+    rgba(234, 248, 254, 0.88) 52%,
+    rgba(228, 240, 255, 0.90) 100%
+  );
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(0, 143, 195, 0.24);
+  box-shadow: 0 12px 32px -18px rgba(0, 74, 153, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  transition: transform 240ms var(--ease-reveal),
+    border-color 240ms ease,
+    box-shadow 240ms ease;
+}
+
+.imdx-card-interactive::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    240px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(0, 165, 195, 0.14),
+    transparent 62%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 280ms ease;
+}
+
+.imdx-card-interactive:hover::before {
+  opacity: 1;
+}
+
+.imdx-card-interactive:hover {
+  transform: translateY(-3px);
+  border-color: rgba(46, 132, 203, 0.48);
+  box-shadow: 0 22px 44px -18px rgba(0, 143, 195, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.imdx-subbox {
+  background: linear-gradient(
+    135deg,
+    rgba(232, 252, 247, 0.92) 0%,
+    rgba(239, 249, 255, 0.90) 54%,
+    rgba(235, 243, 255, 0.92) 100%
+  );
+  border: 1px solid rgba(0, 143, 195, 0.22);
+}
+
+.imdx-modal-surface {
+  background: linear-gradient(
+    140deg,
+    #ebfcf8 0%,
+    #eff9fe 52%,
+    #ebf2ff 100%
+  );
+  border: 1px solid rgba(0, 143, 195, 0.28);
+  box-shadow: 0 24px 56px -16px rgba(0, 36, 86, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.imdx-kicker {
+  font-family: "Soehne", "Inter", Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #008fa7;
+}
+
+.imdx-gradient-text {
+  background: linear-gradient(100deg, #087d68 0%, #008fa7 54%, #2563eb 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.imdx-btn-primary {
+  background: linear-gradient(100deg, #2fb89d 0%, #00a5c3 58%, #2e84cb 100%);
+  color: #ffffff;
+  box-shadow: 0 12px 24px -10px rgba(0, 143, 167, 0.55);
+  transition: transform 200ms ease, box-shadow 200ms ease, filter 200ms ease;
+}
+
+.imdx-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px -10px rgba(0, 143, 167, 0.65);
+  filter: brightness(1.03);
+}
+
+.imdx-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Landing-inspired motion primitives for internal screens */
+@keyframes imdx-stage-reveal {
+  from {
+    opacity: 0;
+    filter: blur(7px);
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+
+@keyframes imdx-card-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes imdx-row-reveal {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+}
+
+@keyframes imdx-rule-draw {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes imdx-bar-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes imdx-chart-draw {
+  from {
+    stroke-dashoffset: 640;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes imdx-dot-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes imdx-modal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes imdx-modal-spring {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes imdx-plus-float {
+  from {
+    opacity: 0.35;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0.78;
+    transform: translate3d(var(--float-x, 3px), var(--float-y, -3px), 0);
+  }
+}
+
+.imdx-stage-enter {
+  animation: imdx-stage-reveal 480ms var(--ease-reveal) both;
+}
+
+.imdx-stagger-card {
+  animation: imdx-card-rise 520ms var(--ease-reveal) both;
+  animation-delay: calc(var(--stagger-i, 0) * 65ms);
+}
+
+.imdx-stagger-row {
+  animation: imdx-row-reveal 420ms var(--ease-reveal) both;
+  animation-delay: calc(var(--stagger-i, 0) * 45ms);
+}
+
+.imdx-rule-animate {
+  transform-origin: left center;
+  animation: imdx-rule-draw 620ms var(--ease-reveal) both;
+}
+
+.imdx-bar-animate {
+  transform-origin: left center;
+  animation: imdx-bar-fill 720ms var(--ease-reveal) 140ms both;
+}
+
+.imdx-chart-line {
+  stroke-dasharray: 640;
+  stroke-dashoffset: 640;
+  animation: imdx-chart-draw 950ms var(--ease-reveal) 120ms forwards;
+}
+
+.imdx-chart-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: imdx-dot-pop 380ms var(--ease-reveal) both;
+  animation-delay: calc(220ms + var(--stagger-i, 0) * 75ms);
+}
+
+.imdx-modal-backdrop {
+  animation: imdx-modal-fade 220ms ease both;
+}
+
+.imdx-modal-panel {
+  animation: imdx-modal-spring 380ms var(--ease-reveal) both;
+}
+
+.imdx-corner-plus {
+  animation: imdx-plus-float 3.4s ease-in-out infinite alternate;
+  animation-delay: calc(var(--stagger-i, 0) * 180ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .imdx-stage-enter,
+  .imdx-stagger-card,
+  .imdx-stagger-row,
+  .imdx-rule-animate,
+  .imdx-bar-animate,
+  .imdx-chart-line,
+  .imdx-chart-dot,
+  .imdx-modal-backdrop,
+  .imdx-modal-panel,
+  .imdx-corner-plus,
+  .imdx-orb,
+  .imdx-dash-flow,
+  .imdx-dash-flow-reverse,
+  .imdx-node-pulse {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
   }
 }

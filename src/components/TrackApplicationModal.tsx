@@ -1,12 +1,17 @@
 import { useState } from 'react';
+import type { ApplicationReviewStatus } from '../types/dashboard';
 import type { OnboardingStage } from '../types/onboarding';
+import { ModalPortal } from './ModalPortal';
 
 interface TrackApplicationModalProps {
   isOpen: boolean;
   onClose: () => void;
   applicationNumber: string;
   currentStage: OnboardingStage;
+  applicationStatus: ApplicationReviewStatus;
+  reviewNote?: string;
   workEmail: string;
+  onOpenWorkspace?: () => void;
 }
 
 const STAGE_LABEL: Record<OnboardingStage, string> = {
@@ -25,12 +30,24 @@ export function TrackApplicationModal({
   onClose,
   applicationNumber,
   currentStage,
+  applicationStatus,
+  reviewNote,
   workEmail,
+  onOpenWorkspace,
 }: TrackApplicationModalProps) {
   const [lookupInput, setLookupInput] = useState(applicationNumber);
   const [lookupResult, setLookupResult] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const resolvedStatusLabel =
+    currentStage === 'submitted'
+      ? applicationStatus === 'Approved'
+        ? 'Approved — Workspace Provisioned'
+        : applicationStatus === 'Changes Requested'
+          ? 'Changes Requested by Admin'
+          : 'Application Under Review'
+      : STAGE_LABEL[currentStage];
 
   const handleLookup = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,44 +57,49 @@ export function TrackApplicationModal({
       return;
     }
     if (normalized === applicationNumber) {
-      setLookupResult(STAGE_LABEL[currentStage]);
+      setLookupResult(resolvedStatusLabel);
     } else {
       setLookupResult(`No active application found for "${normalized}".`);
     }
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="track-modal-title"
-    >
-      <div className="w-full max-w-[520px] rounded-[20px] bg-white border border-[#c1c1c1] p-6 sm:p-8 shadow-xl">
-        <div className="flex items-start justify-between gap-4">
+    <ModalPortal>
+      <div
+        className="imdx-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-[#05080d]/55 backdrop-blur-xs p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="track-modal-title"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) onClose();
+        }}
+      >
+      <div className="imdx-modal-panel imdx-modal-surface w-full max-w-[440px] rounded-[14px] p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 id="track-modal-title" className="text-[22px] font-semibold text-[#0f0f0f]">
+            <p className="imdx-kicker">IMDX / APPLICATION TRACKER</p>
+            <h2 id="track-modal-title" className="mt-0.5 text-[19px] text-[#102529]">
               Track My Application
             </h2>
-            <p className="mt-1 text-[15px] text-[#808080]">
+            <p className="mt-1 text-[13px] text-[#59666d]">
               Enter your IMDX application number to check your current onboarding status.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-[#808080] hover:text-[#0f0f0f] text-[22px] leading-none px-2 py-1 cursor-pointer"
+            className="text-[#808080] hover:text-[#0f0f0f] text-[20px] leading-none px-1.5 py-0.5 cursor-pointer"
             aria-label="Close"
           >
             &times;
           </button>
         </div>
 
-        <form onSubmit={handleLookup} className="mt-5 space-y-4">
+        <form onSubmit={handleLookup} className="mt-4 space-y-3.5">
           <div>
             <label
               htmlFor="track-app-number"
-              className="block text-[15px] font-medium text-[#0f0f0f] mb-2"
+              className="block text-[13px] font-medium text-[#0f0f0f] mb-1.5"
             >
               Application Number
             </label>
@@ -90,21 +112,25 @@ export function TrackApplicationModal({
                 setLookupResult(null);
               }}
               placeholder="e.g. ZW4C-9CDM-UC84"
-              className="w-full h-[48px] rounded-[11px] border border-[#c1c1c1] px-4 text-[16px] text-[#0f0f0f] focus:outline-none focus:border-[#002456]"
+              className="w-full h-[40px] rounded-[9px] border border-[#c5dbd8] bg-white px-3.5 text-[14px] text-[#0f0f0f] focus:outline-none focus:border-[#008fa7] focus:ring-4 focus:ring-[#45c0b2]/15"
             />
           </div>
 
-          <div className="rounded-[12px] bg-[#f8f8f8] border border-[#e3e3e3] p-4 text-[14px] space-y-1">
+          <div className="rounded-[10px] bg-[#f8f8f8] border border-[#e3e3e3] p-3 text-[13px] space-y-1">
             <div className="flex justify-between gap-2">
               <span className="text-[#808080]">Active Application:</span>
               <span className="font-semibold text-[#0f0f0f]">{applicationNumber}</span>
             </div>
             <div className="flex justify-between gap-2">
               <span className="text-[#808080]">Status:</span>
-              <span className="font-medium text-[#002456] text-right">
-                {STAGE_LABEL[currentStage]}
-              </span>
+              <span className="font-medium text-[#002456] text-right">{resolvedStatusLabel}</span>
             </div>
+            {reviewNote && currentStage === 'submitted' && (
+              <div className="flex justify-between gap-2">
+                <span className="text-[#808080]">Reviewer Note:</span>
+                <span className="text-[#0f0f0f] text-right">{reviewNote}</span>
+              </div>
+            )}
             {workEmail && (
               <div className="flex justify-between gap-2">
                 <span className="text-[#808080]">Work Email:</span>
@@ -114,28 +140,41 @@ export function TrackApplicationModal({
           </div>
 
           {lookupResult && (
-            <p className="text-[14px] font-medium text-[#059669] bg-[#dcffe5] rounded-[10px] px-4 py-2.5">
+            <p className="text-[13px] font-medium text-[#059669] bg-[#dcffe5] rounded-[8px] px-3.5 py-2">
               {lookupResult}
             </p>
           )}
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex flex-wrap justify-end gap-2.5 pt-1">
+            {onOpenWorkspace && (currentStage === 'submitted' || applicationStatus === 'Approved') && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenWorkspace();
+                }}
+                className="h-[38px] px-4 rounded-[45px] border border-[#008fa7]/35 bg-[#e5faf6] text-[13px] font-semibold text-[#002456] hover:bg-[#d3f5ee] cursor-pointer"
+              >
+                Open Workspace
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
-              className="h-[44px] px-6 rounded-[45px] border border-[#c1c1c1] bg-[#fcfcfc] text-[16px] font-semibold text-[#0f0f0f] hover:bg-[#f2f2f2] cursor-pointer"
+              className="h-[38px] px-5 rounded-[45px] border border-[#c1c1c1] bg-[#fcfcfc] text-[13.5px] font-semibold text-[#0f0f0f] hover:bg-[#f2f2f2] cursor-pointer"
             >
               Close
             </button>
             <button
               type="submit"
-              className="h-[44px] px-6 rounded-[45px] bg-[#32c4a6] hover:bg-[#2ab195] text-[16px] font-semibold text-white cursor-pointer transition-colors"
+              className="h-[38px] px-5 rounded-[45px] imdx-btn-primary text-[13.5px] font-semibold cursor-pointer"
             >
               Check Status
             </button>
           </div>
         </form>
       </div>
-    </div>
+      </div>
+    </ModalPortal>
   );
 }

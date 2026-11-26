@@ -5,9 +5,11 @@ import retryIcon from '../../assets/retry-icon.svg';
 import uploadDocBack from '../../assets/upload-doc-back.svg';
 import uploadDocFront from '../../assets/upload-doc-front.svg';
 import type { DocumentSlotKey, DocumentSlotState } from '../../types/onboarding';
+import { imdxApi } from '../../services/imdxApi';
 import { StepActions } from '../StepActions';
 
 interface OnboardStep04Props {
+  applicationNumber: string;
   documents: Record<DocumentSlotKey, DocumentSlotState>;
   onChange: (
     updater: (
@@ -41,7 +43,13 @@ function isValidFile(file: File): boolean {
   return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
 }
 
-export function OnboardStep04({ documents, onChange, onBack, onNext }: OnboardStep04Props) {
+export function OnboardStep04({
+  applicationNumber,
+  documents,
+  onChange,
+  onBack,
+  onNext,
+}: OnboardStep04Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const timersRef = useRef<Record<string, number>>({});
   const [targetSlot, setTargetSlot] = useState<DocumentSlotKey | null>(null);
@@ -97,6 +105,7 @@ export function OnboardStep04({ documents, onChange, onBack, onNext }: OnboardSt
     }
 
     const sizeLabel = formatFileSize(file.size);
+    void imdxApi.uploadDocument(applicationNumber, slotKey, file);
     onChange((prev) => ({
       ...prev,
       [slotKey]: {
@@ -193,16 +202,17 @@ export function OnboardStep04({ documents, onChange, onBack, onNext }: OnboardSt
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      <div className="mb-6">
-        <h2 className="text-[24px] sm:text-[26px] font-semibold text-black leading-normal">
+      <div className="mb-4">
+        <p className="imdx-kicker">IMDX / STEP 04</p>
+        <h2 className="mt-0.5 text-[19px] sm:text-[21px] text-[#102529] leading-tight">
           Document Verification
         </h2>
-        <p className="mt-1.5 text-[16px] sm:text-[18px] text-[#808080]">
+        <p className="mt-1 text-[13px] sm:text-[14px] text-[#59666d]">
           Upload PDF, PNG or JPG files (max. 10 MB each).
         </p>
       </div>
 
-      <div className="bg-white border border-[#c1c1c1] rounded-[11px] p-6 sm:p-10">
+      <div className="imdx-card rounded-[14px] p-5 sm:p-6">
         <input
           ref={fileInputRef}
           type="file"
@@ -215,7 +225,7 @@ export function OnboardStep04({ documents, onChange, onBack, onNext }: OnboardSt
           }}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-8 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-6 items-center">
           {/* Dropzone */}
           <div
             onDragOver={(e) => {
@@ -228,49 +238,49 @@ export function OnboardStep04({ documents, onChange, onBack, onNext }: OnboardSt
               setIsDragging(false);
               handleFilesSelected(e.dataTransfer.files, null);
             }}
-            className="flex flex-col items-center justify-center py-4 lg:pr-8 lg:border-r lg:border-[#c1c1c1]"
+            className="flex flex-col items-center justify-center py-2 lg:pr-6 lg:border-r lg:border-[#0f766e]/15"
           >
             <button
               type="button"
               onClick={() => handleBrowseClick(null)}
-              className={`relative flex items-center justify-center w-[183px] h-[174px] rounded-[22px] border border-dashed transition-colors cursor-pointer ${
+              className={`relative flex items-center justify-center w-[132px] h-[124px] rounded-[16px] border-2 border-dashed transition-all cursor-pointer ${
                 isDragging
-                  ? 'bg-[#e6faf6] border-[#32c4a6]'
-                  : 'bg-[#f6f6f6] border-[#c1c1c1] hover:border-[#32c4a6]'
+                  ? 'bg-[#e5faf6] border-[#00a5c3] scale-[1.02]'
+                  : 'bg-[#f4fbfa] border-[#9ec7c2] hover:border-[#00a5c3]'
               }`}
               aria-label="Drop or select verification files"
             >
-              <div className="relative w-[66px] h-[64px]">
+              <div className="relative w-[50px] h-[48px]">
                 <img
                   src={uploadDocBack}
                   alt=""
-                  width={51}
-                  height={56}
+                  width={39}
+                  height={43}
                   className="absolute right-0 top-0 pointer-events-none"
                 />
                 <img
                   src={uploadDocFront}
                   alt=""
-                  width={59}
-                  height={62}
+                  width={45}
+                  height={47}
                   className="absolute left-0 bottom-0 pointer-events-none"
                 />
               </div>
             </button>
 
-            <p className="mt-4 text-[20px] font-medium text-[#808080]">Drag files here</p>
-            <p className="mt-1 text-[20px] text-[#808080]">Or</p>
+            <p className="mt-3 text-[14px] font-semibold text-[#192a2c]">Drag files here</p>
+            <p className="mt-0.5 text-[12.5px] text-[#59666d]">Or</p>
             <button
               type="button"
               onClick={() => handleBrowseClick(null)}
-              className="mt-3 h-[57px] w-[174px] rounded-[45px] bg-[#32c4a6] hover:bg-[#2ab195] border border-[#c1c1c1] text-white text-[22px] sm:text-[24px] font-semibold transition-colors cursor-pointer"
+              className="mt-2 h-[36px] px-6 rounded-[45px] imdx-btn-primary text-[13.5px] font-semibold cursor-pointer"
             >
               Browse
             </button>
           </div>
 
           {/* Document slots */}
-          <div className="space-y-5">
+          <div className="space-y-2.5">
             {SLOT_ORDER.map((key) => {
               const doc = documents[key];
               const isEmpty = doc.status === 'empty';
@@ -283,19 +293,17 @@ export function OnboardStep04({ documents, onChange, onBack, onNext }: OnboardSt
                     key={key}
                     type="button"
                     onClick={() => handleBrowseClick(key)}
-                    className="w-full text-left bg-[#fcfcfc] hover:bg-[#f5fbfa] border border-[#c1c1c1] hover:border-[#32c4a6] rounded-[8.5px] px-5 py-4 transition-colors cursor-pointer"
+                    className="w-full text-left bg-gradient-to-r from-[#effcf9]/95 via-[#eff8fe]/95 to-[#edf4ff]/95 hover:from-[#dffaf3] hover:to-[#e2eeff] border border-[#b4d7de] hover:border-[#00a5c3] rounded-[10px] px-4 py-3 transition-all cursor-pointer"
                   >
-                    <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-[18px] font-medium text-[#0f0f0f]">
+                        <p className="text-[14px] font-semibold text-[#102529]">
                           {doc.title}
                           {doc.required && <span className="text-[#dc2626] ml-1">*</span>}
                         </p>
-                        <p className="mt-1 text-[16px] sm:text-[18px] text-[#808080]">
-                          {doc.description}
-                        </p>
+                        <p className="mt-0.5 text-[12.5px] text-[#59666d]">{doc.description}</p>
                       </div>
-                      <span className="shrink-0 text-[14px] font-medium text-[#002456]">
+                      <span className="shrink-0 rounded-full bg-[#e5faf6] border border-[#00a5c3]/25 px-3 py-0.5 text-[12px] font-semibold text-[#002456]">
                         Upload
                       </span>
                     </div>
@@ -306,7 +314,7 @@ export function OnboardStep04({ documents, onChange, onBack, onNext }: OnboardSt
               return (
                 <div
                   key={key}
-                  className="w-full bg-[#fcfcfc] border border-[#c1c1c1] rounded-[8.5px] px-4 sm:px-5 py-3.5"
+                  className="w-full bg-gradient-to-r from-[#f0fcf9] via-[#eff8fe] to-[#edf4ff] border border-[#a8d2dc] rounded-[8.5px] px-4 sm:px-5 py-3.5"
                 >
                   <div className="flex items-center gap-4">
                     <div className="flex items-center justify-center w-[53px] h-[48px] rounded-[8.3px] bg-[#ededed] shrink-0">

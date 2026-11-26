@@ -51,10 +51,19 @@ export interface DocumentSlotState {
   errorMessage?: string;
 }
 
+export interface PolicySection {
+  heading: string;
+  body: string;
+}
+
 export interface PolicyItem {
   id: string;
+  docCode: string;
+  version: string;
+  effectiveDate: string;
   title: string;
   summary: string;
+  sections: PolicySection[];
 }
 
 export interface OnboardingState {

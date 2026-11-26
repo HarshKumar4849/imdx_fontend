@@ -8,8 +8,8 @@ interface StepProgressProps {
 
 export function StepProgress({ currentStep, onStepSelect }: StepProgressProps) {
   return (
-    <div className="bg-white border border-[#c1c1c1] rounded-[12px] sm:rounded-[16px] px-4 sm:px-10 py-7 mb-9 overflow-x-auto">
-      <div className="min-w-[680px]">
+    <div className="imdx-card rounded-[12px] px-3 sm:px-6 py-3.5 mb-5 overflow-x-auto">
+      <div className="min-w-[580px]">
         <div className="grid grid-cols-6 relative">
           {STEPPER_STEPS.map((item, idx) => {
             const isCompleted = item.step < currentStep;
@@ -18,19 +18,21 @@ export function StepProgress({ currentStep, onStepSelect }: StepProgressProps) {
 
             return (
               <div key={item.step} className="relative flex flex-col items-center text-center">
-                {/* Left connector */}
                 {idx > 0 && (
                   <div
-                    className={`absolute top-[13px] right-1/2 left-0 h-[2px] ${
-                      item.step <= currentStep ? 'bg-[#32c4a6]' : 'bg-[#d9d9d9]'
+                    className={`absolute top-[11px] right-1/2 left-0 h-[2px] ${
+                      item.step <= currentStep
+                        ? 'bg-gradient-to-r from-[#45c0b2] to-[#00a5c3]'
+                        : 'bg-[#d4e5e2]'
                     }`}
                   />
                 )}
-                {/* Right connector */}
                 {idx < STEPPER_STEPS.length - 1 && (
                   <div
-                    className={`absolute top-[13px] left-1/2 right-0 h-[2px] ${
-                      item.step < currentStep ? 'bg-[#32c4a6]' : 'bg-[#d9d9d9]'
+                    className={`absolute top-[11px] left-1/2 right-0 h-[2px] ${
+                      item.step < currentStep
+                        ? 'bg-gradient-to-r from-[#45c0b2] to-[#00a5c3]'
+                        : 'bg-[#d4e5e2]'
                     }`}
                   />
                 )}
@@ -40,42 +42,48 @@ export function StepProgress({ currentStep, onStepSelect }: StepProgressProps) {
                   disabled={!isClickable}
                   onClick={() => isClickable && onStepSelect?.(item.step)}
                   className={`relative z-10 flex items-center justify-center rounded-full transition-transform ${
-                    isClickable ? 'cursor-pointer hover:scale-105' : 'cursor-default'
+                    isClickable ? 'cursor-pointer hover:scale-110' : 'cursor-default'
                   }`}
-                  style={{ width: 27, height: 27 }}
+                  style={{ width: 24, height: 24 }}
                   aria-current={isCurrent ? 'step' : undefined}
                   aria-label={`${item.label}: ${item.titleLines.join(' ')}`}
                 >
                   {isCompleted ? (
-                    <span className="flex items-center justify-center size-[27px] rounded-full bg-[#32c4a6]">
+                    <span className="flex items-center justify-center size-[24px] rounded-full bg-gradient-to-br from-[#45c0b2] to-[#00a5c3] shadow-sm">
                       <img
                         src={stepCheckIcon}
                         alt=""
-                        width={12}
-                        height={7}
+                        width={10}
+                        height={6}
                         className="shrink-0"
                       />
                     </span>
                   ) : isCurrent ? (
-                    <span className="flex items-center justify-center size-[27px] rounded-full bg-[#32c4a6]">
-                      <span className="size-[13px] rounded-full bg-white" />
+                    <span className="flex items-center justify-center size-[24px] rounded-full bg-gradient-to-br from-[#45c0b2] to-[#00a5c3] ring-4 ring-[#45c0b2]/25">
+                      <span className="size-[9px] rounded-full bg-white" />
                     </span>
                   ) : (
-                    <span className="size-[18px] rounded-full bg-[#c9c9c9]" />
+                    <span className="size-[15px] rounded-full bg-[#c9deda] border-2 border-white" />
                   )}
                 </button>
 
                 <span
-                  className={`mt-2 text-[15px] leading-tight text-[#0f0f0f] ${
-                    isCurrent ? 'font-semibold' : 'font-normal'
+                  className={`mt-1.5 font-mono text-[10px] uppercase tracking-[0.08em] ${
+                    isCurrent
+                      ? 'font-bold text-[#008fa7]'
+                      : isCompleted
+                        ? 'font-semibold text-[#087d68]'
+                        : 'text-[#6a7d82]'
                   }`}
                 >
                   {item.label}
                 </span>
 
                 <div
-                  className={`mt-1.5 text-[15px] sm:text-[16px] leading-snug text-[#808080] ${
-                    isCurrent ? 'font-semibold text-[#555555]' : 'font-normal'
+                  className={`mt-0.5 text-[12px] leading-tight ${
+                    isCurrent
+                      ? 'font-semibold text-[#102529]'
+                      : 'font-normal text-[#59666d]'
                   }`}
                 >
                   {item.titleLines.map((line) => (

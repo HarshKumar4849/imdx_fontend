@@ -1,4 +1,4 @@
-import imdxLogo from '../assets/imdx-logo.png';
+import imdxLogo from '../assets/imdx-logo.webp';
 
 interface HeaderProps {
   onLogoClick: () => void;
@@ -8,11 +8,11 @@ interface HeaderProps {
 
 export function Header({ onLogoClick, onTrackClick, onOpenWorkspace }: HeaderProps) {
   return (
-    <header className="w-full bg-[#002456] h-[71px] px-3 sm:px-6 flex items-center justify-between">
+    <header className="sticky top-0 z-30 w-full bg-gradient-to-r from-[#001a3d] via-[#002456] to-[#035877] border-b border-[#45c0b2]/35 h-[56px] px-3 sm:px-6 flex items-center justify-between shadow-[0_8px_28px_-12px_rgba(0,36,86,0.45)]">
       <button
         type="button"
         onClick={onLogoClick}
-        className="relative h-[57px] w-[152px] overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#32c4a6] rounded"
+        className="relative h-[42px] w-[114px] overflow-hidden cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#45c0b2] rounded"
         aria-label="IMDX Home"
       >
         <img
@@ -22,11 +22,11 @@ export function Header({ onLogoClick, onTrackClick, onOpenWorkspace }: HeaderPro
         />
       </button>
 
-      <div className="flex items-center gap-4 sm:gap-6">
+      <div className="flex items-center gap-2.5 sm:gap-3">
         <button
           type="button"
           onClick={onOpenWorkspace}
-          className="text-white/90 hover:text-[#32c4a6] font-medium text-[15px] sm:text-[16px] transition-colors cursor-pointer whitespace-nowrap"
+          className="h-[32px] px-3.5 rounded-full border border-white/25 bg-white/10 hover:bg-white/20 text-white font-medium text-[13px] backdrop-blur-sm transition-all cursor-pointer whitespace-nowrap"
         >
           Workspace
         </button>
@@ -34,7 +34,7 @@ export function Header({ onLogoClick, onTrackClick, onOpenWorkspace }: HeaderPro
         <button
           type="button"
           onClick={onTrackClick}
-          className="text-white font-semibold text-[16px] sm:text-[18px] hover:text-[#32c4a6] transition-colors cursor-pointer whitespace-nowrap px-2 py-1"
+          className="h-[32px] px-3.5 rounded-full bg-white/95 hover:bg-white text-[#002456] font-semibold text-[13px] transition-all cursor-pointer whitespace-nowrap shadow-sm"
         >
           Track my application
         </button>

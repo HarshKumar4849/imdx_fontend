@@ -12,10 +12,10 @@ export function FieldLabel({
   htmlFor,
   label,
   required = false,
-  sizeClass = 'text-[18px] sm:text-[20px]',
+  sizeClass = 'text-[13px] sm:text-[13.5px]',
 }: FieldLabelProps) {
   return (
-    <label htmlFor={htmlFor} className={`block font-normal text-[#0f0f0f] mb-2.5 ${sizeClass}`}>
+    <label htmlFor={htmlFor} className={`block font-semibold text-[#192a2c] mb-1.5 ${sizeClass}`}>
       {label}
       {required && <span className="text-[#dc2626] ml-1">*</span>}
     </label>
@@ -43,7 +43,7 @@ export function TextField({
   onChange,
   placeholder,
   type = 'text',
-  heightClass = 'h-[64px]',
+  heightClass = 'h-[40px]',
   error,
   className = '',
 }: TextFieldProps) {
@@ -56,11 +56,11 @@ export function TextField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-full ${heightClass} rounded-[11px] border bg-white px-4 text-[17px] text-[#0f0f0f] placeholder:text-[#a3a3a3] transition-colors focus:outline-none focus:border-[#002456] ${
-          error ? 'border-[#dc2626]' : 'border-[#c1c1c1]'
+        className={`w-full ${heightClass} rounded-[9px] border bg-white/95 px-3.5 text-[14px] text-[#102529] placeholder:text-[#8ea1a5] transition-all focus:outline-none focus:border-[#008fa7] focus:ring-4 focus:ring-[#45c0b2]/15 ${
+          error ? 'border-[#dc2626]' : 'border-[#c5dbd8]'
         }`}
       />
-      {error && <p className="mt-1.5 text-[13px] text-[#dc2626]">{error}</p>}
+      {error && <p className="mt-1 text-[12px] text-[#dc2626]">{error}</p>}
     </div>
   );
 }
@@ -95,13 +95,13 @@ export function SelectField({
           id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className={`w-full h-[64px] appearance-none rounded-[11px] border bg-white pl-4 pr-12 text-[17px] transition-colors focus:outline-none focus:border-[#002456] cursor-pointer ${
-            value ? 'text-[#0f0f0f]' : 'text-[#a3a3a3]'
-          } ${error ? 'border-[#dc2626]' : 'border-[#c1c1c1]'}`}
+          className={`w-full h-[40px] appearance-none rounded-[9px] border bg-white/95 pl-3.5 pr-10 text-[14px] transition-all focus:outline-none focus:border-[#008fa7] focus:ring-4 focus:ring-[#45c0b2]/15 cursor-pointer ${
+            value ? 'text-[#102529]' : 'text-[#8ea1a5]'
+          } ${error ? 'border-[#dc2626]' : 'border-[#c5dbd8]'}`}
         >
           <option value="">{placeholder}</option>
           {options.map((opt) => (
-            <option key={opt} value={opt} className="text-[#0f0f0f]">
+            <option key={opt} value={opt} className="text-[#102529]">
               {opt}
             </option>
           ))}
@@ -109,12 +109,12 @@ export function SelectField({
         <img
           src={chevronLg}
           alt=""
-          width={21}
-          height={12}
-          className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 shrink-0"
+          width={15}
+          height={9}
+          className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 shrink-0"
         />
       </div>
-      {error && <p className="mt-1.5 text-[13px] text-[#dc2626]">{error}</p>}
+      {error && <p className="mt-1 text-[12px] text-[#dc2626]">{error}</p>}
     </div>
   );
 }
