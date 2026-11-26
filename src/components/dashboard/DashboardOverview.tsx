@@ -474,7 +474,7 @@ export function DashboardOverview({
               </button>
             </div>
 
-            <div className="imdx-subbox grid grid-cols-2 gap-3 rounded-[10px] p-3.5 text-[12.5px]">
+            <div className="imdx-subbox grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-[10px] p-3.5 text-[12.5px]">
               <div>
                 <p className="text-[#64748b]">Purpose</p>
                 <p className="font-semibold text-[#102529]">{selectedRequest.purpose}</p>

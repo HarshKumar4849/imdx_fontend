@@ -227,7 +227,7 @@ export function CatalogPage({
                 {activeOffer.description}
               </p>
 
-              <div className="mt-4 grid grid-cols-2 gap-4">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <p className="text-[11.5px] text-[#64748b]">Dataset ID</p>
                   <p className="mt-0.5 text-[13px] font-semibold text-[#102529]">
@@ -380,18 +380,18 @@ export function CatalogPage({
               </div>
 
               <div className="pt-2 space-y-2.5 text-[12px]">
-                <div className="grid grid-cols-[88px_1fr] gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-[88px_1fr] gap-0.5 sm:gap-2">
                   <span className="font-semibold text-[#102529]">Liability</span>
                   <span className="text-[#475569]">
                     Provided as is. The data belongs to the publisher and is redistributed under{' '}
                     {activeOffer.licence}
                   </span>
                 </div>
-                <div className="grid grid-cols-[88px_1fr] gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-[88px_1fr] gap-0.5 sm:gap-2">
                   <span className="font-semibold text-[#102529]">Governing</span>
                   <span className="text-[#475569]">India</span>
                 </div>
-                <div className="grid grid-cols-[88px_1fr] gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-[88px_1fr] gap-0.5 sm:gap-2">
                   <span className="font-semibold text-[#102529]">Delivery notes</span>
                   <span className="text-[#475569] break-all">
                     Attribution required: {activeOffer.publisher}. License: {activeOffer.licence} (

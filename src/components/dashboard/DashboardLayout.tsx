@@ -277,7 +277,7 @@ export function DashboardLayout({
             </button>
 
             {showNotifications && (
-              <div className="imdx-modal-panel imdx-modal-surface absolute right-0 mt-2 w-[310px] rounded-[12px] p-3 text-[12px] z-40 space-y-2">
+              <div className="imdx-modal-panel imdx-modal-surface absolute right-0 mt-2 w-[min(310px,calc(100vw-24px))] rounded-[12px] p-3 text-[12px] z-40 space-y-2">
                 <div className="flex items-center justify-between border-b border-[#f1f5f9] pb-1.5">
                   <span className="font-semibold text-[#102529]">
                     Notifications ({unreadCount} unread)
@@ -343,6 +343,59 @@ export function DashboardLayout({
           </div>
         </div>
       </header>
+
+      {/* Mobile & Tablet Portal Switcher + Search Bar */}
+      <div className="lg:hidden border-b border-[#008fc3]/15 bg-gradient-to-r from-[#ebfcf8]/95 via-[#eff9fe]/95 to-[#ebf2ff]/95 px-3 py-2 space-y-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11.5px]">
+          <button
+            type="button"
+            onClick={onGoToLanding}
+            className="px-3 py-1 rounded-full border border-[#b4d7de] bg-white/80 font-medium text-[#475569] hover:text-[#102529] shrink-0 cursor-pointer"
+          >
+            Home
+          </button>
+          <button
+            type="button"
+            onClick={() => onPortalModeChange('workspace')}
+            className={`px-3 py-1 rounded-full font-semibold shrink-0 cursor-pointer transition-all ${
+              portalMode === 'workspace'
+                ? 'bg-[#002456] text-white shadow-xs'
+                : 'border border-[#b4d7de] bg-white/80 text-[#475569]'
+            }`}
+          >
+            Workspace
+          </button>
+          <button
+            type="button"
+            onClick={() => onPortalModeChange('admin')}
+            className={`px-3 py-1 rounded-full font-semibold shrink-0 cursor-pointer transition-all ${
+              portalMode === 'admin'
+                ? 'bg-[#002456] text-white shadow-xs'
+                : 'border border-[#b4d7de] bg-white/80 text-[#475569]'
+            }`}
+          >
+            Admin
+          </button>
+          <button
+            type="button"
+            onClick={onGoToOnboarding}
+            className="px-3 py-1 rounded-full border border-[#008fa7]/30 bg-white/80 font-medium text-[#008fa7] shrink-0 cursor-pointer"
+          >
+            Onboarding
+          </button>
+        </div>
+
+        <div className="sm:hidden flex h-[34px] items-center bg-white/90 border border-[#b4d7de] rounded-[8px] px-3 gap-2 focus-within:border-[#008fa7]">
+          <img src={searchIcon} alt="" width={14} height={14} className="shrink-0 opacity-70" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search datasets, transfers, subscriptions..."
+            className="w-full min-w-0 bg-transparent text-[12.5px] text-[#0f0f0f] placeholder:text-[#94a3b8] focus:outline-none"
+          />
+        </div>
+      </div>
 
       <div className="flex flex-1 min-h-[calc(100vh-56px)]">
         {/* Left Sidebar */}
