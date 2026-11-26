@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { cygnusApi, isPlatformConfigured } from '../services/cygnusApi';
 import type { ApplicationReviewStatus } from '../types/dashboard';
 import type { OnboardingStage } from '../types/onboarding';
 import { ModalPortal } from './ModalPortal';
@@ -37,6 +38,7 @@ export function TrackApplicationModal({
 }: TrackApplicationModalProps) {
   const [lookupInput, setLookupInput] = useState(applicationNumber);
   const [lookupResult, setLookupResult] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
   if (!isOpen) return null;
 
@@ -49,13 +51,30 @@ export function TrackApplicationModal({
           : 'Application Under Review'
       : STAGE_LABEL[currentStage];
 
-  const handleLookup = (e: React.FormEvent) => {
+  const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     const normalized = lookupInput.trim().toUpperCase();
     if (!normalized) {
       setLookupResult('Please enter an application number.');
       return;
     }
+
+    if (isPlatformConfigured() && workEmail) {
+      setChecking(true);
+      try {
+        await cygnusApi.trackApplication({ number: normalized, email: workEmail });
+        setLookupResult(
+          `Tracking request submitted for ${normalized}. Check ${workEmail} for your private status link.`,
+        );
+        return;
+      } catch (err) {
+        setLookupResult(err instanceof Error ? err.message : 'Unable to check status right now.');
+        return;
+      } finally {
+        setChecking(false);
+      }
+    }
+
     if (normalized === applicationNumber) {
       setLookupResult(resolvedStatusLabel);
     } else {
@@ -167,9 +186,10 @@ export function TrackApplicationModal({
             </button>
             <button
               type="submit"
-              className="h-[38px] px-5 rounded-[45px] imdx-btn-primary text-[13.5px] font-semibold cursor-pointer"
+              disabled={checking}
+              className="h-[38px] px-5 rounded-[45px] imdx-btn-primary text-[13.5px] font-semibold cursor-pointer disabled:opacity-60"
             >
-              Check Status
+              {checking ? 'Checking…' : 'Check Status'}
             </button>
           </div>
         </form>

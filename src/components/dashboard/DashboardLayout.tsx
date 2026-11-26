@@ -21,6 +21,10 @@ interface DashboardLayoutProps {
   userDisplayName: string;
   onGoToLanding: () => void;
   onGoToOnboarding: () => void;
+  isBackendLive?: boolean;
+  isAuthenticated?: boolean;
+  onSignInClick?: () => void;
+  onSignOutClick?: () => void;
   children: ReactNode;
 }
 
@@ -145,6 +149,10 @@ export function DashboardLayout({
   userDisplayName,
   onGoToLanding,
   onGoToOnboarding,
+  isBackendLive,
+  isAuthenticated,
+  onSignInClick,
+  onSignOutClick,
   children,
 }: DashboardLayoutProps) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -331,6 +339,24 @@ export function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-2 pl-1">
+            {onSignInClick && !isAuthenticated && (
+              <button
+                type="button"
+                onClick={onSignInClick}
+                className="h-[30px] px-3 rounded-full border border-[#008fa7]/40 bg-[#e5faf6] hover:bg-[#d2f5ee] text-[11.5px] font-semibold text-[#002456] cursor-pointer whitespace-nowrap"
+              >
+                {isBackendLive ? 'Sign In' : 'Cygnus Auth'}
+              </button>
+            )}
+            {onSignOutClick && isAuthenticated && (
+              <button
+                type="button"
+                onClick={onSignOutClick}
+                className="h-[30px] px-3 rounded-full border border-[#cbd5e1] bg-white/85 hover:bg-[#f8fafc] text-[11.5px] font-semibold text-[#475569] cursor-pointer whitespace-nowrap"
+              >
+                Sign Out
+              </button>
+            )}
             <span className="flex items-center justify-center size-8 rounded-full bg-[#002456] text-white text-[11px] font-bold shrink-0">
               {initials}
             </span>

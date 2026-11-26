@@ -1,6 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import emptyDatasetsIcon from '../../assets/empty-datasets.svg';
 import searchIcon from '../../assets/search-icon.svg';
+import {
+  cygnusApi,
+  isAgentConfigured,
+  loadUserSession,
+  type CygnusOffer,
+} from '../../services/cygnusApi';
 import { ModalPortal } from '../ModalPortal';
 import type { DatasetStatus, MyDatasetItem } from '../../types/dashboard';
 
@@ -34,6 +40,33 @@ export function MyDatasetsPage({
   const [coverageFilter, setCoverageFilter] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedDataset, setSelectedDataset] = useState<MyDatasetItem | null>(null);
+  const [healthText, setHealthText] = useState<string | null>(null);
+  const [offersState, setOffersState] = useState<{ datasetId: string; items: CygnusOffer[] }>({
+    datasetId: '',
+    items: [],
+  });
+  const [newOfferPrice, setNewOfferPrice] = useState('499');
+  const [offerActionNote, setOfferActionNote] = useState('');
+
+  const offers = useMemo(
+    () => (selectedDataset && offersState.datasetId === selectedDataset.id ? offersState.items : []),
+    [selectedDataset, offersState],
+  );
+
+  useEffect(() => {
+    if (!selectedDataset || !isAgentConfigured() || !loadUserSession()?.token) return;
+    let active = true;
+    const dsId = selectedDataset.id;
+    void cygnusApi
+      .listDatasetOffers(dsId)
+      .then((list) => {
+        if (active) setOffersState({ datasetId: dsId, items: list });
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [selectedDataset]);
 
   const categories = useMemo(
     () => ['All', ...Array.from(new Set(datasets.map((d) => d.category)))],
@@ -396,6 +429,119 @@ export function MyDatasetsPage({
                   {getDisplayStatus(selectedDataset.status)}
                 </p>
               </div>
+            </div>
+
+            <div className="imdx-subbox rounded-[10px] p-3 text-[12px] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-[#102529]">Source Health &amp; Pricing Offers</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isAgentConfigured() || !loadUserSession()?.token) {
+                      setHealthText('Source reachable (200 OK · Preview check)');
+                      return;
+                    }
+                    setHealthText('Checking…');
+                    void cygnusApi
+                      .getDatasetHealth(selectedDataset.id)
+                      .then((h) => setHealthText(`${h.ok ? 'Healthy' : 'Degraded'}: ${h.message}`))
+                      .catch((e) => setHealthText(e instanceof Error ? e.message : 'Health check failed'));
+                  }}
+                  className="text-[11.5px] font-semibold text-[#008fa7] hover:underline cursor-pointer"
+                >
+                  Check Health
+                </button>
+              </div>
+              {healthText && <p className="text-[11.5px] text-[#059669]">{healthText}</p>}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  value={newOfferPrice}
+                  onChange={(e) => setNewOfferPrice(e.target.value)}
+                  aria-label="New offer price INR"
+                  className="w-[96px] h-[30px] rounded-[7px] border border-[#cbd5e1] bg-white px-2 text-[12px]"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const price = Number(newOfferPrice) || 499;
+                    const dsId = selectedDataset.id;
+                    if (!isAgentConfigured() || !loadUserSession()?.token) {
+                      setOffersState((prev) => ({
+                        datasetId: dsId,
+                        items: [
+                          ...(prev.datasetId === dsId ? prev.items : []),
+                          {
+                            id: `offer-${Date.now()}`,
+                            modelType: 'SUBSCRIPTION',
+                            recurringPrice: price,
+                            currency: 'INR',
+                            status: 'ENABLED',
+                          },
+                        ],
+                      }));
+                      setOfferActionNote(`Added ₹${price} Subscription offer.`);
+                      return;
+                    }
+                    void cygnusApi
+                      .createDatasetOffer(dsId, {
+                        modelType: 'SUBSCRIPTION',
+                        recurringPrice: price,
+                        billingPeriodDays: 30,
+                        currency: 'INR',
+                      })
+                      .then((created) => {
+                        setOffersState((prev) => ({
+                          datasetId: dsId,
+                          items: [...(prev.datasetId === dsId ? prev.items : []), created],
+                        }));
+                        setOfferActionNote('Pricing offer published.');
+                      })
+                      .catch((e) =>
+                        setOfferActionNote(e instanceof Error ? e.message : 'Offer creation failed'),
+                      );
+                  }}
+                  className="h-[30px] px-3 rounded-[7px] bg-[#002456] text-white text-[11.5px] font-semibold cursor-pointer"
+                >
+                  + Add Offer
+                </button>
+                {offerActionNote && <span className="text-[11px] text-[#008fa7]">{offerActionNote}</span>}
+              </div>
+
+              {offers.length > 0 && (
+                <div className="space-y-1">
+                  {offers.map((of) => (
+                    <div
+                      key={of.id}
+                      className="flex items-center justify-between gap-2 rounded bg-white/80 px-2.5 py-1 border border-[#cbd5e1]"
+                    >
+                      <span className="font-mono text-[11px]">
+                        {of.modelType} · ₹{of.recurringPrice ?? of.unitPrice ?? of.basePrice ?? 0} {of.currency}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const dsId = selectedDataset.id;
+                          if (isAgentConfigured() && loadUserSession()?.token) {
+                            void cygnusApi.disableDatasetOffer(dsId, of.id);
+                          }
+                          setOffersState((prev) => ({
+                            datasetId: dsId,
+                            items: (prev.datasetId === dsId ? prev.items : []).filter(
+                              (x) => x.id !== of.id,
+                            ),
+                          }));
+                        }}
+                        className="text-[11px] text-[#dc2626] hover:underline cursor-pointer"
+                      >
+                        Disable
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">

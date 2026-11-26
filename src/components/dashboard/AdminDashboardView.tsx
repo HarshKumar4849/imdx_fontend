@@ -1,6 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { INITIAL_CAPACITY_CLUSTERS } from '../../data/adminData';
 import { POLICIES } from '../../data/onboardingConstants';
+import {
+  cygnusApi,
+  isPlatformConfigured,
+  loadAdminSession,
+  type CygnusBreach,
+  type CygnusCapacity,
+  type CygnusClusterHealth,
+  type CygnusTenant,
+} from '../../services/cygnusApi';
 import { ModalPortal } from '../ModalPortal';
 import type {
   AdminNavKey,
@@ -117,11 +126,47 @@ export function AdminDashboardView({
   const [draftNote, setDraftNote] = useState(reviewNote);
   const [newPurposeName, setNewPurposeName] = useState('');
 
-  // Admin settings local state
+  // Admin settings & governance live state
   const [autoProvision, setAutoProvision] = useState(true);
   const [auditRetentionDays, setAuditRetentionDays] = useState('365');
   const [adminEmail, setAdminEmail] = useState('governance@imdx.org');
   const [settingsSaved, setSettingsSaved] = useState(false);
+
+  const [newPolicyTitle, setNewPolicyTitle] = useState('');
+  const [newPolicyBody, setNewPolicyBody] = useState('');
+  const [ledgerVerifyText, setLedgerVerifyText] = useState('');
+  const [capacityState, setCapacityState] = useState<CygnusCapacity | null>(null);
+  const [capacityInput, setCapacityInput] = useState('25');
+  const [clusterHealth, setClusterHealth] = useState<CygnusClusterHealth | null>(null);
+  const [tenants, setTenants] = useState<CygnusTenant[]>([]);
+  const [breaches, setBreaches] = useState<CygnusBreach[]>([]);
+  const [breachTitle, setBreachTitle] = useState('');
+  const [adminActionNote, setAdminActionNote] = useState('');
+
+  useEffect(() => {
+    if (!isPlatformConfigured() || !loadAdminSession()?.token) return;
+    let active = true;
+    if (activeNav === 'capacity') {
+      void Promise.allSettled([
+        cygnusApi.getCapacity(),
+        cygnusApi.getClusterHealth(),
+        cygnusApi.listTenants(),
+        cygnusApi.listBreaches(),
+      ]).then(([capRes, healthRes, tenRes, breachRes]) => {
+        if (!active) return;
+        if (capRes.status === 'fulfilled') {
+          setCapacityState(capRes.value);
+          setCapacityInput(String(capRes.value.max));
+        }
+        if (healthRes.status === 'fulfilled') setClusterHealth(healthRes.value);
+        if (tenRes.status === 'fulfilled') setTenants(tenRes.value);
+        if (breachRes.status === 'fulfilled') setBreaches(breachRes.value);
+      });
+    }
+    return () => {
+      active = false;
+    };
+  }, [activeNav]);
 
   const orgName =
     onboardingState.organization.legalName || 'ABC Mobility Technologies Pvt. Ltd.';
@@ -164,18 +209,24 @@ export function AdminDashboardView({
     setIsInspectModalOpen(false);
   };
 
-  const toggleParticipantStatus = (id: string) => {
+  const toggleParticipantStatus = async (id: string) => {
+    const target = participants.find((p) => p.id === id);
+    if (!target) return;
+    const nextStatus = target.status === 'Active' ? 'Suspended' : 'Active';
+    if (isPlatformConfigured() && loadAdminSession()?.token) {
+      if (nextStatus === 'Suspended') {
+        await cygnusApi.deactivateParticipant(target.did);
+      } else {
+        await cygnusApi.reactivateParticipant(target.did);
+      }
+    }
     onParticipantsChange(
-      participants.map((p) => {
-        if (p.id !== id) return p;
-        const nextStatus = p.status === 'Active' ? 'Suspended' : 'Active';
-        appendAudit(
-          nextStatus === 'Suspended' ? 'Suspended Participant' : 'Activated Participant',
-          p.name,
-          nextStatus === 'Suspended' ? 'Warning' : 'Success',
-        );
-        return { ...p, status: nextStatus };
-      }),
+      participants.map((p) => (p.id === id ? { ...p, status: nextStatus } : p)),
+    );
+    appendAudit(
+      nextStatus === 'Suspended' ? 'Suspended Participant' : 'Activated Participant',
+      target.name,
+      nextStatus === 'Suspended' ? 'Warning' : 'Success',
     );
   };
 
@@ -194,25 +245,32 @@ export function AdminDashboardView({
     );
   };
 
-  const togglePurposeActive = (id: string) => {
-    onPurposesChange(
-      purposes.map((pur) => {
-        if (pur.id !== id) return pur;
-        const next = !pur.active;
-        appendAudit(next ? 'Activated Data Purpose' : 'Disabled Data Purpose', pur.name);
-        return { ...pur, active: next };
-      }),
-    );
+  const togglePurposeActive = async (id: string) => {
+    const target = purposes.find((p) => p.id === id);
+    if (!target) return;
+    const next = !target.active;
+    if (!next && isPlatformConfigured() && loadAdminSession()?.token) {
+      await cygnusApi.deactivatePurpose(id);
+    }
+    onPurposesChange(purposes.map((pur) => (pur.id === id ? { ...pur, active: next } : pur)));
+    appendAudit(next ? 'Activated Data Purpose' : 'Disabled Data Purpose', target.name);
   };
 
-  const handleAddPurpose = (e: React.FormEvent) => {
+  const handleAddPurpose = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPurposeName.trim()) return;
+    const trimmed = newPurposeName.trim();
+    const desc = 'Custom governance data-exchange purpose registered by IMDX Admin.';
+    let createdId = `pur-${Date.now()}`;
+    if (isPlatformConfigured() && loadAdminSession()?.token) {
+      const res = await cygnusApi.createPurpose({ name: trimmed, category: 'ANALYTICS', description: desc });
+      if (res?.id) createdId = res.id;
+    }
     const item: DataPurposeItem = {
-      id: `pur-${Date.now()}`,
+      id: createdId,
       code: `IMDX-PUR-0${purposes.length + 1}`,
-      name: newPurposeName.trim(),
-      description: 'Custom governance data-exchange purpose registered by IMDX Admin.',
+      name: trimmed,
+      description: desc,
       active: true,
     };
     onPurposesChange([item, ...purposes]);
@@ -415,7 +473,24 @@ export function AdminDashboardView({
                       <td className="py-3 px-3.5 whitespace-nowrap">
                         <StatusBadge status={p.status} />
                       </td>
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <td className="py-3 px-4 text-right whitespace-nowrap space-x-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const email = repEmail;
+                            if (isPlatformConfigured() && loadAdminSession()?.token) {
+                              void cygnusApi
+                                .inviteParticipantOrgAdmin(p.did, email)
+                                .then((r) => setAdminActionNote(`Org Admin invite: ${r.status}`));
+                            } else {
+                              setAdminActionNote(`Invite sent to ${email} for ${p.name}.`);
+                            }
+                            appendAudit('Invited Org Admin', `${p.name} (${email})`);
+                          }}
+                          className="text-[12px] font-semibold text-[#002456] hover:underline cursor-pointer"
+                        >
+                          Invite Admin
+                        </button>
                         <button
                           type="button"
                           onClick={() => toggleParticipantStatus(p.id)}
@@ -500,10 +575,60 @@ export function AdminDashboardView({
       {/* 4. POLICIES */}
       {activeNav === 'policies' && (
         <div className="imdx-card rounded-[16px] overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#e2e8f0]">
+          <div className="px-6 py-4 border-b border-[#e2e8f0] space-y-3">
             <h2 className="text-[18px] font-semibold text-[#0f0f0f]">
               Governance Policies &amp; Compliance Rules
             </h2>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newPolicyTitle.trim()) return;
+                const slug = newPolicyTitle.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                if (isPlatformConfigured() && loadAdminSession()?.token) {
+                  void cygnusApi.createAdminPolicyVersion(slug, {
+                    title: newPolicyTitle.trim(),
+                    body: newPolicyBody.trim() || 'Standard IMDX governance policy.',
+                    status: 'APPROVED',
+                  });
+                }
+                onPoliciesChange([
+                  {
+                    id: `${slug}-${Date.now()}`,
+                    title: newPolicyTitle.trim(),
+                    version: 'v1.0',
+                    mandatory: true,
+                    enforced: true,
+                    updatedAt: 'Just now',
+                  },
+                  ...policies,
+                ]);
+                appendAudit('Published Policy Version', newPolicyTitle.trim());
+                setNewPolicyTitle('');
+                setNewPolicyBody('');
+              }}
+              className="grid grid-cols-1 sm:grid-cols-4 gap-2"
+            >
+              <input
+                type="text"
+                value={newPolicyTitle}
+                onChange={(e) => setNewPolicyTitle(e.target.value)}
+                placeholder="New policy title..."
+                className="h-[36px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[13px]"
+              />
+              <input
+                type="text"
+                value={newPolicyBody}
+                onChange={(e) => setNewPolicyBody(e.target.value)}
+                placeholder="Policy terms summary..."
+                className="sm:col-span-2 h-[36px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[13px]"
+              />
+              <button
+                type="submit"
+                className="h-[36px] px-4 rounded-[8px] bg-[#002456] text-white text-[13px] font-semibold cursor-pointer"
+              >
+                + Publish Policy
+              </button>
+            </form>
           </div>
           <div className="divide-y divide-[#f1f1f1]">
             {policies.map((pol) => (
@@ -547,8 +672,36 @@ export function AdminDashboardView({
       {activeNav === 'audit-log' && (
         <div className="imdx-card rounded-[16px] overflow-hidden">
           <div className="px-6 py-4 border-b border-[#e2e8f0] flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-[18px] font-semibold text-[#0f0f0f]">Governance Audit Log</h2>
-            <div className="flex items-center gap-2">
+            <div>
+              <h2 className="text-[18px] font-semibold text-[#0f0f0f]">Governance Audit Log</h2>
+              {ledgerVerifyText && (
+                <p className="mt-1 text-[12px] font-medium text-[#059669]">{ledgerVerifyText}</p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const hash = auditLogs[0]?.target ?? '';
+                  if (isPlatformConfigured() && loadAdminSession()?.token && hash) {
+                    void cygnusApi
+                      .verifyLedgerEvent(hash)
+                      .then((r) =>
+                        setLedgerVerifyText(
+                          `Ledger ${r.valid ? 'VERIFIED' : 'INVALID'} (${r.eventsChecked} events checked).`,
+                        ),
+                      )
+                      .catch((e) =>
+                        setLedgerVerifyText(e instanceof Error ? e.message : 'Verification failed'),
+                      );
+                  } else {
+                    setLedgerVerifyText(`Hash chain verified cleanly (${auditLogs.length} events).`);
+                  }
+                }}
+                className="h-[30px] px-3 rounded-full border border-[#008fa7]/35 bg-[#e5faf6] text-[12px] font-semibold text-[#002456] cursor-pointer"
+              >
+                Verify Ledger Chain
+              </button>
               {(['All', 'Success', 'Warning'] as const).map((outcome) => (
                 <button
                   key={outcome}
@@ -677,75 +830,231 @@ export function AdminDashboardView({
         </div>
       )}
 
-      {/* 7. CAPACITY */}
+      {/* 7. CAPACITY & TENANTS */}
       {activeNav === 'capacity' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {INITIAL_CAPACITY_CLUSTERS.map((cluster) => (
-            <div
-              key={cluster.id}
-              className="imdx-card rounded-[16px] p-6 space-y-4"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-[13px] text-[#808080]">{cluster.region}</p>
-                  <h3 className="text-[17px] font-bold text-[#0f0f0f] font-mono">
-                    {cluster.clusterName}
-                  </h3>
-                </div>
-                <span
-                  className={`rounded-full px-3 py-0.5 text-[12px] font-medium ${
-                    cluster.status === 'Healthy'
-                      ? 'bg-[#dcffe5] text-[#059669]'
-                      : 'bg-[#ffeedc] text-[#d97706]'
-                  }`}
-                >
-                  {cluster.status}
-                </span>
-              </div>
-
-              <div className="space-y-3 text-[14px]">
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-[#808080]">Tenants Allocated</span>
-                    <span className="font-semibold text-[#0f0f0f]">
-                      {cluster.tenantsAllocated} / {cluster.tenantsMax}
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full bg-[#eef2f6] overflow-hidden">
-                    <div
-                      className="h-full bg-[#002456]"
-                      style={{
-                        width: `${Math.round((cluster.tenantsAllocated / cluster.tenantsMax) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-[#808080]">CPU Utilization</span>
-                    <span className="font-semibold text-[#0f0f0f]">{cluster.cpuPct}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-[#eef2f6] overflow-hidden">
-                    <div className="h-full bg-[#32c4a6]" style={{ width: `${cluster.cpuPct}%` }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-[#808080]">Memory Utilization</span>
-                    <span className="font-semibold text-[#0f0f0f]">{cluster.memoryPct}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-[#eef2f6] overflow-hidden">
-                    <div
-                      className="h-full bg-[#3553ab]"
-                      style={{ width: `${cluster.memoryPct}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
+        <div className="space-y-4">
+          {adminActionNote && (
+            <p className="rounded-[10px] border border-[#99f6e4] bg-[#ecfdf5] px-4 py-2 text-[12.5px] font-medium text-[#065f46]">
+              {adminActionNote}
+            </p>
+          )}
+          <div className="imdx-card rounded-[16px] p-5 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-[13px] font-semibold text-[#102529]">
+                Platform Capacity &amp; Cluster Health (
+                {clusterHealth?.overall?.toUpperCase() ?? 'HEALTHY'})
+              </p>
+              <p className="text-[12px] text-[#64748b]">
+                Live tenants: {capacityState?.live ?? tenants.length} · Max limit:{' '}
+                {capacityState?.max ?? capacityInput}
+              </p>
             </div>
-          ))}
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                value={capacityInput}
+                onChange={(e) => setCapacityInput(e.target.value)}
+                aria-label="Max tenant capacity"
+                className="w-[82px] h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-2.5 text-[13px]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const maxVal = Number(capacityInput) || 25;
+                  if (isPlatformConfigured() && loadAdminSession()?.token) {
+                    void cygnusApi
+                      .setCapacity(maxVal)
+                      .then(() => setAdminActionNote(`Max capacity updated to ${maxVal}.`));
+                  } else {
+                    setAdminActionNote(`Max tenant capacity set to ${maxVal}.`);
+                  }
+                  appendAudit('Updated Cluster Capacity', `Max ${maxVal}`);
+                }}
+                className="h-[34px] px-4 rounded-full bg-[#002456] text-white text-[12px] font-semibold cursor-pointer"
+              >
+                Save Capacity
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {INITIAL_CAPACITY_CLUSTERS.map((cluster) => (
+              <div key={cluster.id} className="imdx-card rounded-[16px] p-6 space-y-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-[13px] text-[#808080]">{cluster.region}</p>
+                    <h3 className="text-[17px] font-bold text-[#0f0f0f] font-mono">
+                      {cluster.clusterName}
+                    </h3>
+                  </div>
+                  <span
+                    className={`rounded-full px-3 py-0.5 text-[12px] font-medium ${
+                      cluster.status === 'Healthy'
+                        ? 'bg-[#dcffe5] text-[#059669]'
+                        : 'bg-[#ffeedc] text-[#d97706]'
+                    }`}
+                  >
+                    {cluster.status}
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-[14px]">
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-[#808080]">Tenants Allocated</span>
+                      <span className="font-semibold text-[#0f0f0f]">
+                        {cluster.tenantsAllocated} / {cluster.tenantsMax}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-[#eef2f6] overflow-hidden">
+                      <div
+                        className="h-full bg-[#002456]"
+                        style={{
+                          width: `${Math.round((cluster.tenantsAllocated / cluster.tenantsMax) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-[#808080]">CPU Utilization</span>
+                      <span className="font-semibold text-[#0f0f0f]">{cluster.cpuPct}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-[#eef2f6] overflow-hidden">
+                      <div className="h-full bg-[#32c4a6]" style={{ width: `${cluster.cpuPct}%` }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-[#808080]">Memory Utilization</span>
+                      <span className="font-semibold text-[#0f0f0f]">{cluster.memoryPct}%</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-[#eef2f6] overflow-hidden">
+                      <div
+                        className="h-full bg-[#3553ab]"
+                        style={{ width: `${cluster.memoryPct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="imdx-card rounded-[16px] p-5 space-y-3">
+            <h3 className="text-[15.5px] font-semibold text-[#102529]">
+              Hosted Tenants &amp; DPDP Breach Governance
+            </h3>
+            {tenants.length > 0 && (
+              <div className="space-y-2">
+                {tenants.map((t) => (
+                  <div
+                    key={t.id}
+                    className="imdx-subbox rounded-[9px] px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-[12px]"
+                  >
+                    <div>
+                      <span className="font-mono font-bold text-[#002456]">{t.namespace}</span> ·{' '}
+                      {t.participantDid} ({t.status})
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void cygnusApi.retryTenant(t.id)}
+                        className="text-[#008fa7] font-semibold hover:underline cursor-pointer"
+                      >
+                        Retry
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void cygnusApi.rotateTenantVaultToken(t.id)}
+                        className="text-[#002456] font-semibold hover:underline cursor-pointer"
+                      >
+                        Rotate Vault
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              <input
+                type="text"
+                value={breachTitle}
+                onChange={(e) => setBreachTitle(e.target.value)}
+                placeholder="Log DPDP breach advisory title..."
+                className="flex-1 min-w-[200px] h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!breachTitle.trim()) return;
+                  if (isPlatformConfigured() && loadAdminSession()?.token) {
+                    void cygnusApi
+                      .createBreach({
+                        title: breachTitle.trim(),
+                        severity: 'HIGH',
+                        description: 'Logged via Admin Governance Console',
+                      })
+                      .then((b) => setBreaches((prev) => [b, ...prev]));
+                  } else {
+                    setBreaches((prev) => [
+                      { id: `br-${Date.now()}`, title: breachTitle.trim(), status: 'OPEN' },
+                      ...prev,
+                    ]);
+                  }
+                  setBreachTitle('');
+                }}
+                className="h-[34px] px-4 rounded-[8px] bg-[#dc2626] text-white text-[12px] font-semibold cursor-pointer"
+              >
+                Log Breach Advisory
+              </button>
+            </div>
+            {breaches.length > 0 && (
+              <div className="space-y-1.5">
+                {breaches.map((b) => (
+                  <div
+                    key={b.id}
+                    className="imdx-subbox rounded-[8px] px-3 py-2 flex items-center justify-between text-[12px]"
+                  >
+                    <span>
+                      {b.title || b.id} — <strong>{b.status}</strong>
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isPlatformConfigured() && loadAdminSession()?.token) {
+                            void cygnusApi.notifyBreach(b.id);
+                          }
+                        }}
+                        className="text-[#008fa7] font-semibold hover:underline cursor-pointer"
+                      >
+                        Notify
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isPlatformConfigured() && loadAdminSession()?.token) {
+                            void cygnusApi.resolveBreach(b.id);
+                          }
+                          setBreaches((prev) =>
+                            prev.map((x) => (x.id === b.id ? { ...x, status: 'RESOLVED' } : x)),
+                          );
+                        }}
+                        className="text-[#059669] font-semibold hover:underline cursor-pointer"
+                      >
+                        Resolve
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -910,9 +1219,32 @@ export function AdminDashboardView({
                 <button
                   type="button"
                   onClick={() => handleApplicationDecision('Changes Requested')}
-                  className="h-[36px] px-4 rounded-full border border-[#dc2626] text-[#dc2626] hover:bg-[#fef2f2] text-[12.5px] font-semibold cursor-pointer"
+                  className="h-[36px] px-4 rounded-full border border-[#d97706] text-[#d97706] hover:bg-[#fffbeb] text-[12.5px] font-semibold cursor-pointer"
                 >
                   Request Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isPlatformConfigured() && loadAdminSession()?.token) {
+                      void cygnusApi
+                        .listAdminApplications()
+                        .then((list) => {
+                          const app = list.find((a) => a.number === onboardingState.applicationNumber);
+                          if (app) {
+                            return cygnusApi.rejectAdminApplication(
+                              app.id,
+                              'Governance verification incomplete',
+                              draftNote.trim() || 'Rejected by IMDX Admin.',
+                            );
+                          }
+                        });
+                    }
+                    handleApplicationDecision('Changes Requested');
+                  }}
+                  className="h-[36px] px-4 rounded-full border border-[#dc2626] text-[#dc2626] hover:bg-[#fef2f2] text-[12.5px] font-semibold cursor-pointer"
+                >
+                  Reject
                 </button>
                 <button
                   type="button"

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import mailIcon from '../../assets/mail-icon.svg';
 import submittedCheck from '../../assets/submitted-check.svg';
+import { imdxApi } from '../../services/imdxApi';
 import type { ApplicationReviewStatus } from '../../types/dashboard';
 import { ApplicationBanner } from '../ApplicationBanner';
 
@@ -20,6 +22,21 @@ export function ApplicationSubmitted({
 }: ApplicationSubmittedProps) {
   const isApproved = applicationStatus === 'Approved';
   const isChangesRequested = applicationStatus === 'Changes Requested';
+  const [resubmitting, setResubmitting] = useState(false);
+  const [resubmitNotice, setResubmitNotice] = useState('');
+
+  const handleResubmit = async () => {
+    setResubmitting(true);
+    setResubmitNotice('');
+    try {
+      await imdxApi.resubmitApplication();
+      setResubmitNotice('Application resubmitted to Governance Desk for review.');
+    } catch (err) {
+      setResubmitNotice(err instanceof Error ? err.message : 'Unable to resubmit right now.');
+    } finally {
+      setResubmitting(false);
+    }
+  };
 
   return (
     <div className="max-w-[940px] mx-auto px-4 sm:px-6 pt-5 pb-10">
@@ -76,9 +93,24 @@ export function ApplicationSubmitted({
                     </span>
                   )}
                   {isChangesRequested && (
-                    <span className="mt-2 inline-flex items-center justify-center rounded-[45px] bg-[#fee2e2] text-[#dc2626] text-[12px] font-semibold px-3.5 py-1">
-                      Changes requested{reviewNote ? `: ${reviewNote}` : ''}
-                    </span>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center justify-center rounded-[45px] bg-[#fee2e2] text-[#dc2626] text-[12px] font-semibold px-3.5 py-1">
+                        Changes requested{reviewNote ? `: ${reviewNote}` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleResubmit}
+                        disabled={resubmitting}
+                        className="h-[28px] px-3.5 rounded-full bg-[#002456] text-white text-[11.5px] font-semibold cursor-pointer disabled:opacity-60"
+                      >
+                        {resubmitting ? 'Resubmitting…' : 'Resubmit Application'}
+                      </button>
+                      {resubmitNotice && (
+                        <span className="text-[12px] font-medium text-[#059669]">
+                          {resubmitNotice}
+                        </span>
+                      )}
+                    </div>
                   )}
                   {isApproved && (
                     <span className="mt-2 inline-flex items-center justify-center rounded-[45px] bg-[#dcffe5] text-[#059669] text-[12px] font-semibold px-3.5 py-1">

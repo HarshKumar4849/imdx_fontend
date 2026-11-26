@@ -5,7 +5,7 @@ import retryIcon from '../../assets/retry-icon.svg';
 import uploadDocBack from '../../assets/upload-doc-back.svg';
 import uploadDocFront from '../../assets/upload-doc-front.svg';
 import type { DocumentSlotKey, DocumentSlotState } from '../../types/onboarding';
-import { imdxApi } from '../../services/imdxApi';
+import { imdxApi, isPlatformConfigured, loadApplicationToken } from '../../services/imdxApi';
 import { StepActions } from '../StepActions';
 
 interface OnboardStep04Props {
@@ -44,7 +44,7 @@ function isValidFile(file: File): boolean {
 }
 
 export function OnboardStep04({
-  applicationNumber,
+  applicationNumber: _applicationNumber,
   documents,
   onChange,
   onBack,
@@ -105,18 +105,48 @@ export function OnboardStep04({
     }
 
     const sizeLabel = formatFileSize(file.size);
-    void imdxApi.uploadDocument(applicationNumber, slotKey, file);
+    const liveUpload = isPlatformConfigured() && Boolean(loadApplicationToken());
     onChange((prev) => ({
       ...prev,
       [slotKey]: {
         ...prev[slotKey],
         fileName: file.name,
         fileSizeLabel: sizeLabel,
-        progress: 25,
+        progress: liveUpload ? 55 : 25,
         status: 'uploading',
         errorMessage: undefined,
       },
     }));
+
+    if (liveUpload) {
+      void imdxApi
+        .uploadDocument(slotKey, file)
+        .then((documentId) => {
+          onChange((prev) => ({
+            ...prev,
+            [slotKey]: {
+              ...prev[slotKey],
+              documentId,
+              progress: 100,
+              status: 'uploaded',
+              errorMessage: undefined,
+            },
+          }));
+        })
+        .catch((err) => {
+          onChange((prev) => ({
+            ...prev,
+            [slotKey]: {
+              ...prev[slotKey],
+              progress: 40,
+              status: 'failed',
+              errorMessage:
+                err instanceof Error ? err.message : 'Document upload failed on server.',
+            },
+          }));
+        });
+      return;
+    }
 
     timersRef.current[slotKey] = window.setInterval(() => {
       onChange((prev) => {
@@ -163,10 +193,15 @@ export function OnboardStep04({
 
   const handleRemoveSlot = (slotKey: DocumentSlotKey) => {
     clearSlotTimer(slotKey);
+    const existingDocId = documents[slotKey]?.documentId;
+    if (existingDocId) {
+      void imdxApi.removeDocument(existingDocId).catch(() => undefined);
+    }
     onChange((prev) => ({
       ...prev,
       [slotKey]: {
         ...prev[slotKey],
+        documentId: undefined,
         fileName: undefined,
         fileSizeLabel: undefined,
         progress: 0,

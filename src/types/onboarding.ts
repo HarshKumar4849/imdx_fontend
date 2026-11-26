@@ -41,6 +41,7 @@ export type DocumentUploadStatus = 'empty' | 'uploading' | 'uploaded' | 'failed'
 
 export interface DocumentSlotState {
   key: DocumentSlotKey;
+  documentId?: string;
   title: string;
   description: string;
   required: boolean;

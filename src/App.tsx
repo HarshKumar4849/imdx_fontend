@@ -3,10 +3,23 @@ import { HomeHero } from './components/landing/HomeHero';
 import { CATALOG_OFFERS } from './data/dashboardData';
 import {
   clearLocalStore,
+  cygnusApi,
   imdxApi,
+  isBackendConfigured,
+  isPlatformConfigured,
+  loadAdminSession,
   loadLocalStore,
+  loadUserSession,
   persistLocalStore,
+  saveAdminSession,
+  saveApplicationToken,
+  saveUserSession,
 } from './services/imdxApi';
+import type { PersistedAdminSession, PersistedUserSession } from './services/cygnusApi';
+
+const AuthModal = lazy(() =>
+  import('./components/AuthModal').then((m) => ({ default: m.AuthModal })),
+);
 
 const ApplicationBanner = lazy(() =>
   import('./components/ApplicationBanner').then((m) => ({ default: m.ApplicationBanner })),
@@ -136,26 +149,138 @@ const PLAN_PRICES_INR: Record<PlanOptionId, { amountInr: number; label: string }
 };
 
 export function App() {
-  const [appSection, setAppSection] = useState<'landing' | 'onboarding' | 'portal'>('landing');
-  const [portalMode, setPortalMode] = useState<'workspace' | 'admin'>('workspace');
+  const [appSection, setAppSection] = useState<'landing' | 'onboarding' | 'portal'>(() => {
+    if (typeof window === 'undefined') return 'landing';
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('token')) return 'onboarding';
+    if (window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/workspace')) {
+      return 'portal';
+    }
+    return 'landing';
+  });
+  const [portalMode, setPortalMode] = useState<'workspace' | 'admin'>(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+      return 'admin';
+    }
+    return 'workspace';
+  });
   const [activeWorkspaceNav, setActiveWorkspaceNav] = useState<WorkspaceNavKey>('dashboard');
   const [activeAdminNav, setActiveAdminNav] = useState<AdminNavKey>('dashboard');
 
   const [store, setStore] = useState<ImdxAppStore>(() => loadLocalStore());
+  const [liveCatalog, setLiveCatalog] = useState<CatalogOffer[] | undefined>(undefined);
+  const [userSession, setUserSession] = useState<PersistedUserSession | null>(() =>
+    loadUserSession(),
+  );
+  const [adminSession, setAdminSession] = useState<PersistedAdminSession | null>(() =>
+    loadAdminSession(),
+  );
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [apiFeedback, setApiFeedback] = useState<{ kind: 'error' | 'info'; message: string } | null>(
+    null,
+  );
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRegisterDatasetOpen, setIsRegisterDatasetOpen] = useState(false);
 
-  // Sync with backend REST API on mount if VITE_API_BASE_URL is configured
+  const reportError = (err: unknown, fallback: string) => {
+    setApiFeedback({
+      kind: 'error',
+      message: err instanceof Error && err.message ? err.message : fallback,
+    });
+  };
+
+  // Handle URL magic-link token (?token=...), SSO handoff (?code=...), or deep path on mount
   useEffect(() => {
     let active = true;
-    void imdxApi.bootstrap().then((hydrated) => {
-      if (active) setStore(hydrated);
-    });
+    const params = new URLSearchParams(window.location.search);
+    const appToken = params.get('token');
+    const ssoCode = params.get('code');
+
+    if (appToken) {
+      saveApplicationToken(appToken);
+      if (isPlatformConfigured()) {
+        void imdxApi
+          .fetchPublicApplication(appToken, loadLocalStore().onboarding)
+          .then((res) => {
+            if (!active) return;
+            setStore((prev) => ({
+              ...prev,
+              onboarding: res.onboarding,
+              applicationStatus: res.applicationStatus,
+              reviewNote: res.reviewNote,
+            }));
+          })
+          .catch((err) => {
+            if (active) reportError(err, 'Unable to load application from link token.');
+          });
+      }
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (ssoCode && isPlatformConfigured()) {
+      void cygnusApi
+        .ssoExchange(ssoCode)
+        .then((res) => {
+          if (!active) return;
+          const next: PersistedUserSession = {
+            ...res,
+            expiresAt: Date.now() + res.expiresIn * 1000,
+          };
+          saveUserSession(next);
+          setUserSession(next);
+          setPortalMode('workspace');
+          setAppSection('portal');
+        })
+        .catch((err) => {
+          if (active) reportError(err, 'SSO sign-in code is invalid or expired.');
+        });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
     return () => {
       active = false;
     };
   }, []);
+
+  // Sync live Cygnus Agent workspace data when authenticated
+  useEffect(() => {
+    let active = true;
+    if (!userSession?.token) return;
+    void imdxApi
+      .syncWorkspace()
+      .then(({ liveCatalog: catalog, ...patch }) => {
+        if (!active) return;
+        if (catalog) setLiveCatalog(catalog);
+        if (Object.keys(patch).length > 0) {
+          setStore((prev) => ({ ...prev, ...patch }));
+        }
+      })
+      .catch((err) => {
+        if (active) reportError(err, 'Failed to sync workspace data from Cygnus Agent.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [userSession]);
+
+  // Sync live Cygnus Platform admin data when admin is authenticated
+  useEffect(() => {
+    let active = true;
+    if (!adminSession?.token) return;
+    void imdxApi
+      .syncAdmin()
+      .then((patch) => {
+        if (!active) return;
+        if (Object.keys(patch).length > 0) {
+          setStore((prev) => ({ ...prev, ...patch }));
+        }
+      })
+      .catch((err) => {
+        if (active) reportError(err, 'Failed to sync governance data from Cygnus Platform.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [adminSession]);
 
   // Persist every store update cleanly in localStorage
   useEffect(() => {
@@ -215,116 +340,163 @@ export function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleStartApplication = () => {
-    updateOnboarding((prev) => ({
-      ...prev,
-      stage: 1,
-      representative: {
-        ...prev.representative,
-        name: prev.representative.name || prev.registration.fullName,
-        email: prev.representative.email || prev.registration.workEmail,
-        countryCode: prev.representative.phoneNumber
-          ? prev.representative.countryCode
-          : prev.registration.countryCode,
-        phoneNumber: prev.representative.phoneNumber || prev.registration.phoneNumber,
-      },
-    }));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleStartApplication = async () => {
+    setApiFeedback(null);
+    try {
+      await imdxApi.startApplication(store.onboarding.registration);
+      if (isPlatformConfigured()) {
+        setApiFeedback({
+          kind: 'info',
+          message: `Verification link requested for ${store.onboarding.registration.workEmail}. Continuing onboarding preview.`,
+        });
+      }
+      updateOnboarding((prev) => ({
+        ...prev,
+        stage: 1,
+        representative: {
+          ...prev.representative,
+          name: prev.representative.name || prev.registration.fullName,
+          email: prev.representative.email || prev.registration.workEmail,
+          countryCode: prev.representative.phoneNumber
+            ? prev.representative.countryCode
+            : prev.registration.countryCode,
+          phoneNumber: prev.representative.phoneNumber || prev.registration.phoneNumber,
+        },
+      }));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      reportError(err, 'Unable to start application on Cygnus Platform.');
+    }
   };
 
-  const handleSubmitOnboarding = () => {
+  const handleSubmitOnboarding = async () => {
+    setApiFeedback(null);
     const submittedState: OnboardingState = { ...store.onboarding, stage: 'submitted' };
-    void imdxApi.submitApplication(submittedState);
-    setStore((prev) => ({
-      ...prev,
-      onboarding: submittedState,
-      ...pushAuditAndNotification(prev, 'Submitted Onboarding Application', prev.onboarding.applicationNumber, {
-        title: 'Application submitted',
-        detail: `${prev.onboarding.applicationNumber} queued for Admin verification.`,
-      }),
-    }));
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleCreateDataset = (dataset: MyDatasetItem) => {
-    void imdxApi.createDataset(dataset);
-    setStore((prev) => ({
-      ...prev,
-      datasets: [dataset, ...prev.datasets],
-      ...pushAuditAndNotification(prev, 'Registered Dataset', dataset.name, {
-        title: 'Dataset registered',
-        detail: `${dataset.name} (${dataset.status}) added to My Datasets.`,
-        targetNav: 'datasets',
-      }),
-    }));
-  };
-
-  const handleUpdateDatasetStatus = (id: string, status: DatasetStatus) => {
-    void imdxApi.updateDatasetStatus(id, status);
-    setStore((prev) => {
-      const target = prev.datasets.find((d) => d.id === id);
-      return {
+    try {
+      await imdxApi.submitApplication(submittedState);
+      setStore((prev) => ({
         ...prev,
-        datasets: prev.datasets.map((d) => (d.id === id ? { ...d, status } : d)),
+        onboarding: submittedState,
         ...pushAuditAndNotification(
           prev,
-          `Dataset Status -> ${status}`,
-          target?.name ?? id,
-          status === 'Published'
-            ? {
-                title: 'Dataset published',
-                detail: `${target?.name ?? 'Dataset'} is now visible in IMDX Catalog.`,
-                targetNav: 'datasets',
-              }
-            : undefined,
-        ),
-      };
-    });
-  };
-
-  const handleDeleteDataset = (id: string) => {
-    void imdxApi.deleteDataset(id);
-    setStore((prev) => {
-      const target = prev.datasets.find((d) => d.id === id);
-      return {
-        ...prev,
-        datasets: prev.datasets.filter((item) => item.id !== id),
-        ...pushAuditAndNotification(
-          prev,
-          'Removed Dataset',
-          target?.name ?? id,
-          undefined,
-          'Warning',
-        ),
-      };
-    });
-  };
-
-  const handleRequestConsent = (record: ConsentRequestRecord) => {
-    void imdxApi.requestConsent(record);
-    const offer = CATALOG_OFFERS.find((o) => o.id === record.offerId);
-    setStore((prev) => {
-      const filtered = prev.consentRequests.filter((c) => c.offerId !== record.offerId);
-      return {
-        ...prev,
-        consentRequests: [record, ...filtered],
-        ...pushAuditAndNotification(
-          prev,
-          'Requested Data Consent',
-          offer?.title ?? record.offerId,
+          'Submitted Onboarding Application',
+          prev.onboarding.applicationNumber,
           {
-            title: 'Consent request submitted',
-            detail: `Sent consent request for ${offer?.title ?? 'dataset'} (${record.duration}).`,
-            targetNav: 'catalog',
+            title: 'Application submitted',
+            detail: `${prev.onboarding.applicationNumber} queued for Admin verification.`,
           },
         ),
-      };
-    });
+      }));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) {
+      reportError(err, 'Application submission failed on Cygnus Platform.');
+    }
   };
 
-  const handleSubscribeOffer = (offer: CatalogOffer, planId: PlanOptionId, purpose: string) => {
+  const handleCreateDataset = async (dataset: MyDatasetItem, endpointUrl?: string) => {
+    setApiFeedback(null);
+    try {
+      const saved = await imdxApi.createDataset(dataset, endpointUrl);
+      setStore((prev) => ({
+        ...prev,
+        datasets: [saved, ...prev.datasets],
+        ...pushAuditAndNotification(prev, 'Registered Dataset', saved.name, {
+          title: 'Dataset registered',
+          detail: `${saved.name} (${saved.status}) added to My Datasets.`,
+          targetNav: 'datasets',
+        }),
+      }));
+    } catch (err) {
+      reportError(err, 'Failed to register dataset on Cygnus Agent.');
+    }
+  };
+
+  const handleUpdateDatasetStatus = async (id: string, status: DatasetStatus) => {
+    setApiFeedback(null);
+    try {
+      await imdxApi.updateDatasetStatus(id, status);
+      setStore((prev) => {
+        const target = prev.datasets.find((d) => d.id === id);
+        return {
+          ...prev,
+          datasets: prev.datasets.map((d) => (d.id === id ? { ...d, status } : d)),
+          ...pushAuditAndNotification(
+            prev,
+            `Dataset Status -> ${status}`,
+            target?.name ?? id,
+            status === 'Published'
+              ? {
+                  title: 'Dataset published',
+                  detail: `${target?.name ?? 'Dataset'} is now visible in IMDX Catalog.`,
+                  targetNav: 'datasets',
+                }
+              : undefined,
+          ),
+        };
+      });
+    } catch (err) {
+      reportError(err, 'Unable to update dataset publish state.');
+    }
+  };
+
+  const handleDeleteDataset = async (id: string) => {
+    setApiFeedback(null);
+    try {
+      await imdxApi.deleteDataset(id);
+      setStore((prev) => {
+        const target = prev.datasets.find((d) => d.id === id);
+        return {
+          ...prev,
+          datasets: prev.datasets.filter((item) => item.id !== id),
+          ...pushAuditAndNotification(
+            prev,
+            'Removed Dataset',
+            target?.name ?? id,
+            undefined,
+            'Warning',
+          ),
+        };
+      });
+    } catch (err) {
+      reportError(err, 'Unable to delete dataset.');
+    }
+  };
+
+  const handleRequestConsent = async (record: ConsentRequestRecord) => {
+    setApiFeedback(null);
+    try {
+      await imdxApi.requestConsent(record);
+      const offer = (liveCatalog ?? CATALOG_OFFERS).find((o) => o.id === record.offerId);
+      setStore((prev) => {
+        const filtered = prev.consentRequests.filter((c) => c.offerId !== record.offerId);
+        return {
+          ...prev,
+          consentRequests: [record, ...filtered],
+          ...pushAuditAndNotification(
+            prev,
+            'Requested Data Consent',
+            offer?.title ?? record.offerId,
+            {
+              title: 'Consent request submitted',
+              detail: `Sent consent request for ${offer?.title ?? 'dataset'} (${record.duration}).`,
+              targetNav: 'catalog',
+            },
+          ),
+        };
+      });
+    } catch (err) {
+      reportError(err, 'Failed to submit consent request.');
+    }
+  };
+
+  const handleSubscribeOffer = async (
+    offer: CatalogOffer,
+    planId: PlanOptionId,
+    purpose: string,
+  ) => {
+    setApiFeedback(null);
     const pricing = PLAN_PRICES_INR[planId];
-    const subscription: SubscriptionRecord = {
+    const fallbackSub: SubscriptionRecord = {
       offerId: offer.id,
       planId,
       purpose,
@@ -336,114 +508,152 @@ export function App() {
       dataset: offer.title,
       counterparty: offer.publisher,
       type: pricing.label,
-      period: 'Nov 2026',
+      period: new Date().toLocaleString('en-IN', { month: 'short', year: 'numeric' }),
       amountInr: pricing.amountInr,
       amount: `₹${pricing.amountInr.toLocaleString('en-IN')}`,
-      date: '26 Nov 2026',
+      date: new Date().toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
       status: planId === 'pay-per-use' ? 'Pending' : 'Paid',
       kind: 'spending',
     };
-    void imdxApi.createSubscription(subscription, transaction);
-    setStore((prev) => ({
-      ...prev,
-      subscriptions: [subscription, ...prev.subscriptions.filter((s) => s.offerId !== offer.id)],
-      billingTransactions: [transaction, ...prev.billingTransactions],
-      ...pushAuditAndNotification(prev, 'Subscribed to Catalog Offer', `${offer.title} (${pricing.label})`, {
-        title: 'Subscription active',
-        detail: `Subscribed to ${offer.title} · Invoice ${transaction.id} created.`,
-        targetNav: 'subscriptions',
-      }),
-    }));
+    try {
+      const serverSub = await imdxApi.createSubscription(offer, purpose);
+      const subscription = serverSub ?? fallbackSub;
+      setStore((prev) => ({
+        ...prev,
+        subscriptions: [subscription, ...prev.subscriptions.filter((s) => s.offerId !== offer.id)],
+        billingTransactions: [transaction, ...prev.billingTransactions],
+        ...pushAuditAndNotification(
+          prev,
+          'Subscribed to Catalog Offer',
+          `${offer.title} (${pricing.label})`,
+          {
+            title: 'Subscription active',
+            detail: `Subscribed to ${offer.title} · Invoice ${transaction.id} created.`,
+            targetNav: 'subscriptions',
+          },
+        ),
+      }));
+    } catch (err) {
+      reportError(err, 'Subscription request failed.');
+    }
   };
 
-  const handleUnsubscribeOffer = (offerId: string) => {
-    void imdxApi.deleteSubscription(offerId);
-    const offer = CATALOG_OFFERS.find((o) => o.id === offerId);
-    setStore((prev) => ({
-      ...prev,
-      subscriptions: prev.subscriptions.filter((s) => s.offerId !== offerId),
-      ...pushAuditAndNotification(
-        prev,
-        'Cancelled Subscription',
-        offer?.title ?? offerId,
-        undefined,
-        'Warning',
-      ),
-    }));
+  const handleUnsubscribeOffer = async (offerId: string) => {
+    setApiFeedback(null);
+    try {
+      await imdxApi.revokeSubscription(offerId);
+      const offer = (liveCatalog ?? CATALOG_OFFERS).find((o) => o.id === offerId);
+      setStore((prev) => ({
+        ...prev,
+        subscriptions: prev.subscriptions.filter((s) => s.offerId !== offerId),
+        ...pushAuditAndNotification(
+          prev,
+          'Cancelled Subscription',
+          offer?.title ?? offerId,
+          undefined,
+          'Warning',
+        ),
+      }));
+    } catch (err) {
+      reportError(err, 'Unable to revoke subscription.');
+    }
   };
 
-  const handleTriggerTransfer = (datasetTitle: string, protocol: string, direction: 'Inbound' | 'Outbound') => {
-    const tx: TransferItem = {
-      id: `TX-${Math.floor(9042 + Math.random() * 900)}`,
-      dataset: datasetTitle,
-      protocol,
-      direction,
-      volume: `${(12 + Math.random() * 68).toFixed(1)} MB`,
-      status: 'Completed',
-      timestamp: 'Just now',
-    };
-    void imdxApi.triggerTransfer(tx);
-    setStore((prev) => ({
-      ...prev,
-      transfers: [tx, ...prev.transfers],
-      ...pushAuditAndNotification(prev, 'Executed EDC Transfer', `${tx.id} · ${tx.dataset}`, {
-        title: `Transfer ${tx.id} completed`,
-        detail: `${tx.direction} transfer (${tx.volume}) finished cleanly.`,
-        targetNav: 'transfers',
-      }),
-    }));
+  const handleTriggerTransfer = async (
+    datasetTitle: string,
+    protocol: string,
+    direction: 'Inbound' | 'Outbound',
+    subscriptionId?: string,
+  ) => {
+    setApiFeedback(null);
+    try {
+      const serverTx = subscriptionId ? await imdxApi.triggerTransfer(subscriptionId) : null;
+      const tx: TransferItem = serverTx ?? {
+        id: `TX-${Math.floor(9042 + Math.random() * 900)}`,
+        dataset: datasetTitle,
+        protocol,
+        direction,
+        volume: `${(12 + Math.random() * 68).toFixed(1)} MB`,
+        status: 'Completed',
+        timestamp: 'Just now',
+      };
+      setStore((prev) => ({
+        ...prev,
+        transfers: [tx, ...prev.transfers],
+        ...pushAuditAndNotification(prev, 'Executed EDC Transfer', `${tx.id} · ${tx.dataset}`, {
+          title: `Transfer ${tx.id} completed`,
+          detail: `${tx.direction} transfer (${tx.volume}) finished cleanly.`,
+          targetNav: 'transfers',
+        }),
+      }));
+    } catch (err) {
+      reportError(err, 'Transfer blocked or failed on EDC connector.');
+    }
   };
 
-  const handleUpdateAccessRequestStatus = (
+  const handleUpdateAccessRequestStatus = async (
     id: string,
     status: AccessRequestStatus,
     note?: string,
   ) => {
-    void imdxApi.updateAccessRequest(id, status, note);
-    setStore((prev) => {
-      const target = prev.accessRequests.find((r) => r.id === id);
-      return {
-        ...prev,
-        accessRequests: prev.accessRequests.map((r) =>
-          r.id === id ? { ...r, status, note: note ?? r.note } : r,
-        ),
-        ...pushAuditAndNotification(
-          prev,
-          `Access Request -> ${status}`,
-          target ? `${target.org} (${target.dataset})` : id,
-          {
-            title: `Access request ${status.toLowerCase()}`,
-            detail: target
-              ? `${target.org} request for ${target.dataset} marked ${status}.`
-              : `Access request updated to ${status}.`,
-            targetNav: 'dashboard',
-          },
-          status === 'Approved' ? 'Success' : 'Warning',
-        ),
-      };
-    });
+    setApiFeedback(null);
+    try {
+      await imdxApi.updateAccessRequest(id, status);
+      setStore((prev) => {
+        const target = prev.accessRequests.find((r) => r.id === id);
+        return {
+          ...prev,
+          accessRequests: prev.accessRequests.map((r) =>
+            r.id === id ? { ...r, status, note: note ?? r.note } : r,
+          ),
+          ...pushAuditAndNotification(
+            prev,
+            `Access Request -> ${status}`,
+            target ? `${target.org} (${target.dataset})` : id,
+            {
+              title: `Access request ${status.toLowerCase()}`,
+              detail: target
+                ? `${target.org} request for ${target.dataset} marked ${status}.`
+                : `Access request updated to ${status}.`,
+              targetNav: 'dashboard',
+            },
+            status === 'Approved' ? 'Success' : 'Warning',
+          ),
+        };
+      });
+    } catch (err) {
+      reportError(err, 'Unable to update consent decision.');
+    }
   };
 
-  const handlePayTransaction = (txId: string) => {
-    void imdxApi.payTransaction(txId);
-    setStore((prev) => ({
-      ...prev,
-      billingTransactions: prev.billingTransactions.map((t) =>
-        t.id === txId ? { ...t, status: 'Paid' } : t,
-      ),
-      ...pushAuditAndNotification(prev, 'Settled Billing Invoice', txId, {
-        title: `Invoice ${txId} paid`,
-        detail: 'Payment recorded cleanly in your IMDX billing ledger.',
-        targetNav: 'billing',
-      }),
-    }));
+  const handlePayTransaction = async (txId: string) => {
+    setApiFeedback(null);
+    try {
+      await imdxApi.payTransaction(txId);
+      setStore((prev) => ({
+        ...prev,
+        billingTransactions: prev.billingTransactions.map((t) =>
+          t.id === txId ? { ...t, status: 'Paid' } : t,
+        ),
+        ...pushAuditAndNotification(prev, 'Settled Billing Invoice', txId, {
+          title: `Invoice ${txId} paid`,
+          detail: 'Payment recorded cleanly in your IMDX billing ledger.',
+          targetNav: 'billing',
+        }),
+      }));
+    } catch (err) {
+      reportError(err, 'Unable to settle invoice payment.');
+    }
   };
 
   const handleSaveSettings = (
     profile: { legalName: string; repName: string; workEmail: string },
     preferences: WorkspacePreferences,
   ) => {
-    void imdxApi.savePreferences(preferences);
     setStore((prev) => ({
       ...prev,
       onboarding: {
@@ -460,13 +670,33 @@ export function App() {
     }));
   };
 
-  const handleUpdateApplicationStatus = (status: ApplicationReviewStatus, note?: string) => {
-    void imdxApi.updateApplicationDecision(store.onboarding.applicationNumber, status, note);
-    setStore((prev) => ({
-      ...prev,
-      applicationStatus: status,
-      reviewNote: note !== undefined ? note : prev.reviewNote,
-    }));
+  const handleUpdateApplicationStatus = async (status: ApplicationReviewStatus, note?: string) => {
+    setApiFeedback(null);
+    try {
+      await imdxApi.updateApplicationDecision(store.onboarding.applicationNumber, status, note);
+      setStore((prev) => ({
+        ...prev,
+        applicationStatus: status,
+        reviewNote: note !== undefined ? note : prev.reviewNote,
+      }));
+    } catch (err) {
+      reportError(err, 'Unable to submit governance application decision.');
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (userSession?.token && isPlatformConfigured()) {
+      await cygnusApi.logoutUser(userSession.token).catch(() => undefined);
+    }
+    if (adminSession?.token && isPlatformConfigured()) {
+      await cygnusApi.logoutAdmin(adminSession.token).catch(() => undefined);
+    }
+    saveUserSession(null);
+    saveAdminSession(null);
+    setUserSession(null);
+    setAdminSession(null);
+    setLiveCatalog(undefined);
+    setApiFeedback({ kind: 'info', message: 'Signed out cleanly.' });
   };
 
   const handleResetDemoData = () => {
@@ -475,9 +705,14 @@ export function App() {
   };
 
   const userDisplayName =
+    userSession?.email ||
+    adminSession?.email ||
     store.onboarding.representative.name ||
     store.onboarding.registration.fullName ||
     'Aarav Mehta';
+
+  const isAuthenticated =
+    portalMode === 'admin' ? Boolean(adminSession?.token) : Boolean(userSession?.token);
 
   if (appSection === 'landing') {
     return (
@@ -519,12 +754,35 @@ export function App() {
             }))
           }
           userDisplayName={userDisplayName}
+          isBackendLive={isBackendConfigured()}
+          isAuthenticated={isAuthenticated}
+          onSignInClick={() => setIsAuthModalOpen(true)}
+          onSignOutClick={handleSignOut}
           onGoToLanding={() => {
             setAppSection('landing');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           onGoToOnboarding={openOnboarding}
         >
+          {apiFeedback && (
+            <div
+              role="status"
+              className={`mb-4 rounded-[10px] border px-4 py-2.5 text-[12.5px] flex items-center justify-between gap-3 ${
+                apiFeedback.kind === 'error'
+                  ? 'border-[#fca5a5] bg-[#fef2f2] text-[#991b1b]'
+                  : 'border-[#99f6e4] bg-[#ecfdf5] text-[#065f46]'
+              }`}
+            >
+              <span>{apiFeedback.message}</span>
+              <button
+                type="button"
+                onClick={() => setApiFeedback(null)}
+                className="font-semibold underline cursor-pointer shrink-0"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           <Suspense fallback={<PanelLoadingFallback />}>
             {portalMode === 'admin' ? (
               <AdminDashboardView
@@ -579,6 +837,7 @@ export function App() {
                   <CatalogPage
                     searchQuery={searchQuery}
                     onSearchChange={setSearchQuery}
+                    offers={liveCatalog}
                     subscriptions={store.subscriptions}
                     consentRequests={store.consentRequests}
                     onRequestConsent={handleRequestConsent}
@@ -593,11 +852,12 @@ export function App() {
                     searchQuery={searchQuery}
                     onUnsubscribe={handleUnsubscribeOffer}
                     onPullData={(offerId) => {
-                      const offer = CATALOG_OFFERS.find((o) => o.id === offerId);
-                      handleTriggerTransfer(
+                      const offer = (liveCatalog ?? CATALOG_OFFERS).find((o) => o.id === offerId);
+                      void handleTriggerTransfer(
                         offer?.title ?? 'Catalog Dataset',
                         offer?.protocol ?? 'GTFS',
                         'Inbound',
+                        offerId,
                       );
                     }}
                     onGoToCatalog={() => setActiveWorkspaceNav('catalog')}
@@ -645,6 +905,24 @@ export function App() {
             onCreate={handleCreateDataset}
           />
         )}
+
+        {isAuthModalOpen && (
+          <AuthModal
+            isOpen={isAuthModalOpen}
+            initialMode={portalMode}
+            onClose={() => setIsAuthModalOpen(false)}
+            onUserSignedIn={(session) => {
+              setUserSession(session);
+              setPortalMode('workspace');
+              setApiFeedback({ kind: 'info', message: `Signed in as ${session.email}.` });
+            }}
+            onAdminSignedIn={(session) => {
+              setAdminSession(session);
+              setPortalMode('admin');
+              setApiFeedback({ kind: 'info', message: `Signed in to Governance Desk (${session.email}).` });
+            }}
+          />
+        )}
       </Suspense>
     );
   }
@@ -666,6 +944,27 @@ export function App() {
         />
 
         <main>
+          {apiFeedback && (
+            <div className="max-w-[940px] mx-auto px-4 sm:px-6 pt-4">
+              <div
+                role="status"
+                className={`rounded-[10px] border px-4 py-2.5 text-[12.5px] flex items-center justify-between gap-3 ${
+                  apiFeedback.kind === 'error'
+                    ? 'border-[#fca5a5] bg-[#fef2f2] text-[#991b1b]'
+                    : 'border-[#99f6e4] bg-[#ecfdf5] text-[#065f46]'
+                }`}
+              >
+                <span>{apiFeedback.message}</span>
+                <button
+                  type="button"
+                  onClick={() => setApiFeedback(null)}
+                  className="font-semibold underline cursor-pointer shrink-0"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
           <Suspense fallback={<PanelLoadingFallback />}>
             {store.onboarding.stage === 'register' && (
               <div key="register" className="imdx-stage-enter">
@@ -696,7 +995,14 @@ export function App() {
                       onChange={(organization) =>
                         updateOnboarding((prev) => ({ ...prev, organization }))
                       }
-                      onNext={() => goToStage(2)}
+                      onNext={() => {
+                        void imdxApi
+                          .saveOrganizationStep(store.onboarding.organization)
+                          .then(() => goToStage(2))
+                          .catch((err) =>
+                            reportError(err, 'Unable to save organization details to backend.'),
+                          );
+                      }}
                     />
                   )}
 
@@ -707,7 +1013,14 @@ export function App() {
                         updateOnboarding((prev) => ({ ...prev, representative }))
                       }
                       onBack={() => goToStage(1)}
-                      onNext={() => goToStage(3)}
+                      onNext={() => {
+                        void imdxApi
+                          .saveRepresentativeStep(store.onboarding.representative)
+                          .then(() => goToStage(3))
+                          .catch((err) =>
+                            reportError(err, 'Unable to save representative details to backend.'),
+                          );
+                      }}
                     />
                   )}
 

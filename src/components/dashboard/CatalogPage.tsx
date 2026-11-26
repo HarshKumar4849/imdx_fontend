@@ -10,6 +10,7 @@ import type {
 interface CatalogPageProps {
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  offers?: CatalogOffer[];
   subscriptions: SubscriptionRecord[];
   consentRequests: ConsentRequestRecord[];
   onRequestConsent: (record: ConsentRequestRecord) => void;
@@ -33,13 +34,15 @@ const PLAN_OPTIONS: Array<{ id: PlanOptionId; title: string; pricing: string; am
 
 export function CatalogPage({
   searchQuery,
+  offers,
   subscriptions,
   consentRequests,
   onRequestConsent,
   onSubscribeOffer,
   onUnsubscribeOffer,
 }: CatalogPageProps) {
-  const [selectedOfferId, setSelectedOfferId] = useState<string>(CATALOG_OFFERS[0].id);
+  const catalogOffers = offers && offers.length > 0 ? offers : CATALOG_OFFERS;
+  const [selectedOfferId, setSelectedOfferId] = useState<string>(catalogOffers[0].id);
   const [detailTab, setDetailTab] = useState<DetailTab>('overview');
 
   const [consentPurpose, setConsentPurpose] = useState('Transport planning & analytics');
@@ -53,19 +56,19 @@ export function CatalogPage({
   const [consentNotice, setConsentNotice] = useState('');
 
   const matchingOffers = useMemo(() => {
-    if (!searchQuery.trim()) return CATALOG_OFFERS;
+    if (!searchQuery.trim()) return catalogOffers;
     const q = searchQuery.toLowerCase();
-    return CATALOG_OFFERS.filter(
+    return catalogOffers.filter(
       (offer) =>
         offer.title.toLowerCase().includes(q) ||
         offer.category.toLowerCase().includes(q) ||
         offer.protocol.toLowerCase().includes(q) ||
         offer.datasetId.toLowerCase().includes(q),
     );
-  }, [searchQuery]);
+  }, [searchQuery, catalogOffers]);
 
   const activeOffer: CatalogOffer =
-    CATALOG_OFFERS.find((o) => o.id === selectedOfferId) ?? CATALOG_OFFERS[0];
+    catalogOffers.find((o) => o.id === selectedOfferId) ?? catalogOffers[0];
 
   const activeSubscription = subscriptions.find((s) => s.offerId === activeOffer.id);
   const isSubscribed = Boolean(activeSubscription);
@@ -206,7 +209,7 @@ export function CatalogPage({
           }}
           className="mb-1.5 h-[28px] rounded-[6px] border border-[#cbd5e1] bg-white/90 px-2.5 text-[11.5px] text-[#334155] focus:outline-none focus:border-[#008fa7] cursor-pointer"
         >
-          {(matchingOffers.length > 0 ? matchingOffers : CATALOG_OFFERS).map((offer) => (
+          {(matchingOffers.length > 0 ? matchingOffers : catalogOffers).map((offer) => (
             <option key={offer.id} value={offer.id}>
               {offer.title} ({offer.datasetId})
             </option>

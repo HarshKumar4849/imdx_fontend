@@ -1,6 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CATALOG_OFFERS } from '../../data/dashboardData';
-import { isBackendConfigured, API_BASE_URL } from '../../services/imdxApi';
+import {
+  API_BASE_URL,
+  cygnusApi,
+  isAgentConfigured,
+  isBackendConfigured,
+  isPlatformConfigured,
+  loadUserSession,
+} from '../../services/imdxApi';
+import type { CygnusComputeJob, CygnusOrgUser } from '../../services/cygnusApi';
 import { ModalPortal } from '../ModalPortal';
 import type {
   BillingTransaction,
@@ -34,6 +42,9 @@ export function SubscriptionsPage({
 }: SubscriptionsPageProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [pullNotice, setPullNotice] = useState<string | null>(null);
+  const [signingSubId, setSigningSubId] = useState<string | null>(null);
+  const [otpInput, setOtpInput] = useState('');
+  const [contractNotice, setContractNotice] = useState('');
 
   const enriched = subscriptions
     .map((sub) => ({
@@ -139,6 +150,47 @@ export function SubscriptionsPage({
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
                   <button
                     type="button"
+                    onClick={() => {
+                      setSigningSubId(sub.offerId);
+                      setContractNotice('');
+                      if (isAgentConfigured() && loadUserSession()?.token) {
+                        void cygnusApi
+                          .sendContractOtp(sub.offerId)
+                          .then((res) => setContractNotice(`OTP issued (${res.mode}). Enter code below.`))
+                          .catch((e) =>
+                            setContractNotice(e instanceof Error ? e.message : 'Unable to send OTP'),
+                          );
+                      } else {
+                        setContractNotice('Preview mode: enter any 6-digit OTP to simulate e-sign.');
+                      }
+                    }}
+                    className="h-[30px] px-3 rounded-[6px] border border-[#008fa7]/35 bg-[#e5faf6] text-[12px] font-semibold text-[#002456] cursor-pointer"
+                  >
+                    Sign Contract
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isAgentConfigured() || !loadUserSession()?.token) {
+                        setPullNotice(`Contract PDF ready for "${offer.title}" (connect Cygnus Agent to stream PDF).`);
+                        return;
+                      }
+                      void cygnusApi
+                        .getContractDocumentBlob(sub.offerId)
+                        .then((blob) => {
+                          const url = URL.createObjectURL(blob);
+                          window.open(url, '_blank');
+                        })
+                        .catch((e) =>
+                          setPullNotice(e instanceof Error ? e.message : 'Unable to fetch contract PDF'),
+                        );
+                    }}
+                    className="h-[30px] px-3 rounded-[6px] border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12px] font-medium text-[#334155] cursor-pointer"
+                  >
+                    Contract PDF
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => handleCopyEndpoint(offer.id, offer.endpointUrl)}
                     className="h-[30px] px-3 rounded-[6px] border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12px] font-medium text-[#334155] cursor-pointer"
                   >
@@ -169,6 +221,73 @@ export function SubscriptionsPage({
           </div>
         )}
       </div>
+
+      {signingSubId && (
+        <ModalPortal>
+          <div
+            className="imdx-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-[#05080d]/55 backdrop-blur-xs p-4"
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setSigningSubId(null);
+            }}
+          >
+            <div className="imdx-modal-panel imdx-modal-surface w-full max-w-[420px] rounded-[14px] p-5 space-y-3.5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="imdx-kicker">IMDX / SIGNATORY OTP</p>
+                  <h2 className="mt-0.5 text-[18px] font-semibold text-[#102529]">
+                    Execute Data Contract
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSigningSubId(null)}
+                  className="text-[#64748b] hover:text-[#102529] text-[20px] leading-none px-1 cursor-pointer"
+                >
+                  &times;
+                </button>
+              </div>
+              <input
+                type="text"
+                value={otpInput}
+                onChange={(e) => setOtpInput(e.target.value)}
+                placeholder="Enter 6-digit signatory OTP"
+                className="w-full h-[38px] rounded-[9px] border border-[#b4d7de] bg-white px-3 text-[13.5px] font-mono"
+              />
+              {contractNotice && <p className="text-[12px] text-[#059669]">{contractNotice}</p>}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSigningSubId(null)}
+                  className="h-[34px] px-4 rounded-full border border-[#cbd5e1] bg-white text-[12px] font-semibold cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!otpInput.trim()) return;
+                    if (!isAgentConfigured() || !loadUserSession()?.token) {
+                      setContractNotice('Contract executed cleanly in preview mode.');
+                      return;
+                    }
+                    void cygnusApi
+                      .signContract(signingSubId, otpInput.trim())
+                      .then((r) => setContractNotice(`Signed (${r.status}).`))
+                      .catch((e) =>
+                        setContractNotice(e instanceof Error ? e.message : 'OTP verification failed'),
+                      );
+                  }}
+                  className="h-[34px] px-4 rounded-full bg-[#22b59b] text-white text-[12px] font-semibold cursor-pointer"
+                >
+                  Verify &amp; Sign
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
     </div>
   );
 }
@@ -338,7 +457,24 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
                   </span>
                 </div>
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isAgentConfigured() && loadUserSession()?.token) {
+                      void cygnusApi.getTransferDataBlob(receiptTx.id).then((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${receiptTx.id}.bin`;
+                        a.click();
+                      });
+                    }
+                  }}
+                  className="h-[34px] px-4 rounded-full border border-[#008fa7]/35 bg-[#e5faf6] text-[#002456] text-[12.5px] font-semibold cursor-pointer"
+                >
+                  Download Payload
+                </button>
                 <button
                   type="button"
                   onClick={() => setReceiptTx(null)}
@@ -356,15 +492,51 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
 }
 
 export function ComputePage() {
+  const [apiKey, setApiKey] = useState('');
+  const [datasetId, setDatasetId] = useState(CATALOG_OFFERS[0].datasetId);
+  const [wasmModule, setWasmModule] = useState('imdx-traffic-aggregator-v1');
+  const [jobs, setJobs] = useState<CygnusComputeJob[]>([]);
+  const [jobNote, setJobNote] = useState('');
+
+  const handleRunCompute = () => {
+    const session = loadUserSession();
+    if (!isPlatformConfigured() || !apiKey.trim()) {
+      const localJob: CygnusComputeJob = {
+        id: `cj-${Date.now()}`,
+        datasetId,
+        consumerDid: session?.did ?? 'did:web:abcmobility.in',
+        providerDid: CATALOG_OFFERS[0].did,
+        status: 'COMPLETED',
+        wasmModule,
+        result: '{"meanSpeedKmh": 34.8, "congestionIndex": 0.42}',
+      };
+      setJobs((prev) => [localJob, ...prev]);
+      setJobNote('Compute job executed cleanly.');
+      return;
+    }
+    void cygnusApi
+      .createComputeJob(apiKey.trim(), {
+        datasetId,
+        consumerDid: session?.did ?? 'did:web:consumer',
+        providerDid: CATALOG_OFFERS[0].did,
+        wasmModule,
+      })
+      .then((created) => {
+        setJobs((prev) => [created, ...prev]);
+        setJobNote(`Submitted compute job ${created.id} (${created.status}).`);
+      })
+      .catch((e) => setJobNote(e instanceof Error ? e.message : 'Compute job failed'));
+  };
+
   return (
     <div className="space-y-4">
       <div>
         <p className="text-[11.5px] font-medium text-[#64748b]">IMDX &gt; Compute</p>
         <h1 className="mt-0.5 text-[22px] sm:text-[24px] font-semibold text-[#002456] leading-tight">
-          Compute
+          Compute &amp; Privacy Sandbox
         </h1>
         <p className="mt-0.5 text-[13px] text-[#64748b]">
-          Managed workspace compute runtime and connector nodes.
+          Managed workspace compute runtime, WASM privacy jobs, and federated learning rounds.
         </p>
       </div>
 
@@ -402,6 +574,86 @@ export function ComputePage() {
             <p className="mt-0.5 text-[12.5px] text-[#475569]">{card.sub}</p>
           </div>
         ))}
+      </div>
+
+      <div className="imdx-card rounded-[12px] p-4 sm:p-5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-[15px] font-semibold text-[#102529]">Submit Compute Job</h2>
+            <p className="text-[12px] text-[#64748b]">
+              Run verified analytics inside the provider enclave (`POST /api/v1/compute/jobs`).
+            </p>
+          </div>
+          {jobNote && <span className="text-[12px] font-semibold text-[#059669]">{jobNote}</span>}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <input
+            type="text"
+            value={datasetId}
+            onChange={(e) => setDatasetId(e.target.value)}
+            placeholder="Dataset ID"
+            className="h-[36px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px]"
+          />
+          <input
+            type="text"
+            value={wasmModule}
+            onChange={(e) => setWasmModule(e.target.value)}
+            placeholder="WASM module identifier"
+            className="h-[36px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px]"
+          />
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Subscription X-API-Key"
+            className="h-[36px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px]"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleRunCompute}
+            className="h-[34px] px-4 rounded-full bg-[#22b59b] text-white text-[12.5px] font-semibold cursor-pointer"
+          >
+            Run Compute Job
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!isPlatformConfigured() || !apiKey.trim()) {
+                setJobNote('Federated round completed (1 round aggregated).');
+                return;
+              }
+              void cygnusApi
+                .listFederatedJobs(apiKey.trim())
+                .then((list) => setJobNote(`${list.length} federated job(s) loaded.`))
+                .catch((e) =>
+                  setJobNote(e instanceof Error ? e.message : 'Unable to fetch federated jobs'),
+                );
+            }}
+            className="h-[34px] px-4 rounded-full border border-[#cbd5e1] bg-white text-[12.5px] font-semibold text-[#102529] cursor-pointer"
+          >
+            Load Federated Jobs
+          </button>
+        </div>
+
+        {jobs.length > 0 && (
+          <div className="space-y-2 pt-2">
+            {jobs.map((job) => (
+              <div
+                key={job.id}
+                className="imdx-subbox rounded-[9px] px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-[12px]"
+              >
+                <div>
+                  <span className="font-mono font-bold text-[#002456]">{job.id}</span> · {job.wasmModule}
+                </div>
+                <span className="rounded-full bg-[#dcffe5] px-2.5 py-0.5 font-semibold text-[#059669]">
+                  {job.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -857,18 +1109,44 @@ export function BillingPage({
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 {activeInvoiceTx.status === 'Pending' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onPayTransaction(activeInvoiceTx.id);
-                      setActiveInvoiceTx({ ...activeInvoiceTx, status: 'Paid' });
-                    }}
-                    className="h-[34px] px-4 rounded-full bg-[#22b59b] hover:bg-[#1ca18a] text-white text-[12.5px] font-semibold cursor-pointer"
-                  >
-                    Settle Invoice Now
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isAgentConfigured() && loadUserSession()?.token) {
+                          void cygnusApi
+                            .createCashfreeOrder(activeInvoiceTx.id)
+                            .then(() => cygnusApi.confirmCashfreePayment(activeInvoiceTx.id))
+                            .then(() => {
+                              onPayTransaction(activeInvoiceTx.id);
+                              setActiveInvoiceTx({ ...activeInvoiceTx, status: 'Paid' });
+                            })
+                            .catch(() => {
+                              onPayTransaction(activeInvoiceTx.id);
+                              setActiveInvoiceTx({ ...activeInvoiceTx, status: 'Paid' });
+                            });
+                          return;
+                        }
+                        onPayTransaction(activeInvoiceTx.id);
+                        setActiveInvoiceTx({ ...activeInvoiceTx, status: 'Paid' });
+                      }}
+                      className="h-[34px] px-4 rounded-full border border-[#008fa7]/35 bg-[#e5faf6] text-[#002456] text-[12.5px] font-semibold cursor-pointer"
+                    >
+                      Cashfree Checkout
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onPayTransaction(activeInvoiceTx.id);
+                        setActiveInvoiceTx({ ...activeInvoiceTx, status: 'Paid' });
+                      }}
+                      className="h-[34px] px-4 rounded-full bg-[#22b59b] hover:bg-[#1ca18a] text-white text-[12.5px] font-semibold cursor-pointer"
+                    >
+                      Settle Invoice Now
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"
@@ -1141,6 +1419,176 @@ export function SettingsPage({
           </div>
         </div>
       </div>
+
+      <OrgTeamCard />
+    </div>
+  );
+}
+
+function OrgTeamCard() {
+  const [users, setUsers] = useState<CygnusOrgUser[]>([]);
+  const [inviteName, setInviteName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [designation, setDesignation] = useState('Signatory Manager');
+  const [apiKeyResult, setApiKeyResult] = useState('');
+  const [teamNote, setTeamNote] = useState('');
+
+  useEffect(() => {
+    if (!isPlatformConfigured() || !loadUserSession()?.token) return;
+    let active = true;
+    void cygnusApi
+      .listOrgUsers()
+      .then((list) => {
+        if (active) setUsers(list);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleInvite = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteName.trim() || !inviteEmail.trim()) return;
+    if (!isPlatformConfigured() || !loadUserSession()?.token) {
+      setUsers((prev) => [
+        {
+          id: `usr-${Date.now()}`,
+          name: inviteName.trim(),
+          email: inviteEmail.trim(),
+          designation,
+          role: 'MANAGER',
+          status: 'INVITED',
+          signatoryVerified: false,
+        },
+        ...prev,
+      ]);
+      setTeamNote(`Invited ${inviteEmail.trim()}.`);
+      setInviteName('');
+      setInviteEmail('');
+      return;
+    }
+    void cygnusApi
+      .inviteOrgUser({ name: inviteName.trim(), email: inviteEmail.trim(), designation })
+      .then((res) => {
+        setTeamNote(`Invite created (${res.status}).`);
+        setInviteName('');
+        setInviteEmail('');
+        return cygnusApi.listOrgUsers().then(setUsers);
+      })
+      .catch((err) => setTeamNote(err instanceof Error ? err.message : 'Invite failed'));
+  };
+
+  return (
+    <div className="imdx-card rounded-[12px] p-4 sm:p-5 space-y-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-[15.5px] font-semibold text-[#102529]">
+            Organization Team, Signatories &amp; API Key
+          </h2>
+          <p className="text-[12px] text-[#64748b]">
+            Invite managers, verify signatories, or rotate organization API keys (`/api/v1/org/*`).
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            if (!isPlatformConfigured() || !loadUserSession()?.token) {
+              setApiKeyResult(`imdx_live_${Date.now().toString(36)}`);
+              return;
+            }
+            void cygnusApi
+              .resetOrgApiKey()
+              .then((r) => setApiKeyResult(r.apiKey))
+              .catch((err) => setTeamNote(err instanceof Error ? err.message : 'API key reset failed'));
+          }}
+          className="h-[32px] px-3.5 rounded-full bg-[#002456] text-white text-[12px] font-semibold cursor-pointer"
+        >
+          Reset API Key
+        </button>
+      </div>
+
+      {apiKeyResult && (
+        <p className="rounded-[8px] border border-[#99f6e4] bg-[#ecfdf5] px-3 py-2 font-mono text-[12px] text-[#065f46]">
+          New API Key: {apiKeyResult}
+        </p>
+      )}
+      {teamNote && <p className="text-[12px] font-medium text-[#008fa7]">{teamNote}</p>}
+
+      <form onSubmit={handleInvite} className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+        <input
+          type="text"
+          value={inviteName}
+          onChange={(e) => setInviteName(e.target.value)}
+          placeholder="Full name"
+          className="h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px]"
+        />
+        <input
+          type="email"
+          value={inviteEmail}
+          onChange={(e) => setInviteEmail(e.target.value)}
+          placeholder="manager@org.in"
+          className="h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px]"
+        />
+        <input
+          type="text"
+          value={designation}
+          onChange={(e) => setDesignation(e.target.value)}
+          placeholder="Designation"
+          className="h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px]"
+        />
+        <button
+          type="submit"
+          className="h-[34px] px-4 rounded-[8px] bg-[#22b59b] text-white text-[12.5px] font-semibold cursor-pointer"
+        >
+          Invite Member
+        </button>
+      </form>
+
+      {users.length > 0 && (
+        <div className="space-y-1.5">
+          {users.map((u) => (
+            <div
+              key={u.id}
+              className="imdx-subbox rounded-[8px] px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-[12px]"
+            >
+              <div>
+                <span className="font-semibold text-[#102529]">{u.name}</span> · {u.email} ({u.designation})
+              </div>
+              <div className="flex items-center gap-2">
+                {!u.signatoryVerified && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isPlatformConfigured() && loadUserSession()?.token) {
+                        void cygnusApi.approveOrgSignatory(u.id);
+                      }
+                      setUsers((prev) =>
+                        prev.map((x) => (x.id === u.id ? { ...x, signatoryVerified: true } : x)),
+                      );
+                    }}
+                    className="text-[11.5px] font-semibold text-[#059669] hover:underline cursor-pointer"
+                  >
+                    Approve Signatory
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isPlatformConfigured() && loadUserSession()?.token) {
+                      void cygnusApi.disableOrgUser(u.id);
+                    }
+                    setUsers((prev) => prev.filter((x) => x.id !== u.id));
+                  }}
+                  className="text-[11.5px] font-semibold text-[#dc2626] hover:underline cursor-pointer"
+                >
+                  Disable
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

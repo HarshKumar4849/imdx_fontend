@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { cygnusApi, isAgentConfigured } from '../../services/cygnusApi';
 import type { DatasetStatus, MyDatasetItem } from '../../types/dashboard';
 import { ModalPortal } from '../ModalPortal';
 
 interface RegisterDatasetModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (dataset: MyDatasetItem) => void;
+  onCreate: (dataset: MyDatasetItem, endpointUrl?: string) => void;
 }
 
 export function RegisterDatasetModal({ isOpen, onClose, onCreate }: RegisterDatasetModalProps) {
@@ -14,9 +15,33 @@ export function RegisterDatasetModal({ isOpen, onClose, onCreate }: RegisterData
   const [coverage, setCoverage] = useState('Pune');
   const [updateFrequency, setUpdateFrequency] = useState('Every 5 min');
   const [status, setStatus] = useState<DatasetStatus>('Awaiting Approval');
+  const [endpointUrl, setEndpointUrl] = useState('https://api.imdx.org/feeds/sample');
+  const [probeStatus, setProbeStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [probing, setProbing] = useState(false);
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
+
+  const handleTestConnection = async () => {
+    if (!endpointUrl.trim()) {
+      setProbeStatus({ ok: false, text: 'Enter a data source URL to test.' });
+      return;
+    }
+    if (!isAgentConfigured()) {
+      setProbeStatus({ ok: true, text: 'URL format valid (offline preview mode).' });
+      return;
+    }
+    setProbing(true);
+    setProbeStatus(null);
+    try {
+      const res = await cygnusApi.testDataSourceConnection(endpointUrl.trim());
+      setProbeStatus({ ok: res.ok, text: res.message || (res.ok ? 'Endpoint reachable.' : 'Check failed.') });
+    } catch (err) {
+      setProbeStatus({ ok: false, text: err instanceof Error ? err.message : 'Connection probe failed.' });
+    } finally {
+      setProbing(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,17 +49,21 @@ export function RegisterDatasetModal({ isOpen, onClose, onCreate }: RegisterData
       setError('Please enter a dataset name.');
       return;
     }
-    onCreate({
-      id: `ds-${Date.now()}`,
-      name: name.trim(),
-      category: category.trim() || 'Mobility',
-      version: 'v1.0',
-      coverage: coverage.trim() || 'India',
-      updateFrequency: updateFrequency.trim() || 'Daily',
-      quality: '95%',
-      status,
-    });
+    onCreate(
+      {
+        id: `ds-${Date.now()}`,
+        name: name.trim(),
+        category: category.trim() || 'Mobility',
+        version: 'v1.0',
+        coverage: coverage.trim() || 'India',
+        updateFrequency: updateFrequency.trim() || 'Daily',
+        quality: '95%',
+        status,
+      },
+      endpointUrl.trim() || undefined,
+    );
     setName('');
+    setProbeStatus(null);
     setError('');
     onClose();
   };
@@ -153,6 +182,38 @@ export function RegisterDatasetModal({ isOpen, onClose, onCreate }: RegisterData
                 <option value="Draft">Draft</option>
               </select>
             </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label htmlFor="ds-endpoint" className="block text-[13px] font-medium text-[#0f0f0f]">
+                HTTP Data Source URL
+              </label>
+              <button
+                type="button"
+                onClick={handleTestConnection}
+                disabled={probing}
+                className="text-[12px] font-semibold text-[#008fa7] hover:underline cursor-pointer"
+              >
+                {probing ? 'Testing…' : 'Test Connection'}
+              </button>
+            </div>
+            <input
+              id="ds-endpoint"
+              type="url"
+              value={endpointUrl}
+              onChange={(e) => {
+                setEndpointUrl(e.target.value);
+                if (probeStatus) setProbeStatus(null);
+              }}
+              placeholder="https://api.example.in/gtfs/feed"
+              className="w-full h-[38px] rounded-[9px] border border-[#c5dbd8] bg-white px-3 text-[13px] focus:outline-none focus:border-[#008fa7]"
+            />
+            {probeStatus && (
+              <p className={`mt-1 text-[11.5px] ${probeStatus.ok ? 'text-[#059669]' : 'text-[#dc2626]'}`}>
+                {probeStatus.text}
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end gap-2.5 pt-2">
