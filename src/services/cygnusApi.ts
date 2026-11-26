@@ -225,10 +225,62 @@ export interface CygnusCatalogDataset {
   price?: number;
   currency?: string;
   billingPeriodDays?: number;
+  maxCallsPerPeriod?: number | null;
   allowedPurposes?: string | string[];
   termsVersion?: number;
   terms?: string | { liability?: string; governingLaw?: string; deliveryNotes?: string } | null;
+  sla?: string | { uptimePercent?: number; responseTimeMs?: number; penaltyNotes?: string } | null;
   offers?: CygnusOffer[];
+}
+
+export async function sha256Hex(text: string): Promise<string> {
+  const data = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+export function canonicalContractObject(catalog: CygnusCatalogDataset): Record<string, unknown> {
+  const allowed =
+    typeof catalog.allowedPurposes === 'string'
+      ? (JSON.parse(catalog.allowedPurposes) as unknown)
+      : catalog.allowedPurposes;
+  const terms =
+    typeof catalog.terms === 'string'
+      ? (JSON.parse(catalog.terms) as {
+          liability?: string;
+          governingLaw?: string;
+          deliveryNotes?: string;
+        })
+      : catalog.terms;
+  const sla =
+    typeof catalog.sla === 'string'
+      ? (JSON.parse(catalog.sla) as {
+          uptimePercent?: number;
+          responseTimeMs?: number;
+          penaltyNotes?: string;
+        })
+      : catalog.sla;
+  return {
+    termsVersion: catalog.termsVersion ?? 1,
+    price: (catalog.price ?? 0).toFixed(2),
+    currency: catalog.currency ?? 'INR',
+    billingPeriodDays: catalog.billingPeriodDays ?? 30,
+    maxCallsPerPeriod: catalog.maxCallsPerPeriod ?? null,
+    allowedPurposes: Array.isArray(allowed) ? allowed : [],
+    classification: catalog.classification ?? 'PUBLIC',
+    terms: {
+      liability: terms?.liability ?? '',
+      governingLaw: terms?.governingLaw ?? '',
+      deliveryNotes: terms?.deliveryNotes ?? '',
+    },
+    sla: {
+      uptimePercent: sla?.uptimePercent ?? 0,
+      responseTimeMs: sla?.responseTimeMs ?? 0,
+      penaltyNotes: sla?.penaltyNotes ?? '',
+    },
+  };
 }
 
 export interface CygnusSubscription {
@@ -460,11 +512,11 @@ export function saveApplicationToken(token: string | null): void {
 }
 
 export function isPlatformConfigured(): boolean {
-  return Boolean(PLATFORM_BASE);
+  return Boolean(PLATFORM_BASE || AGENT_BASE);
 }
 
 export function isAgentConfigured(): boolean {
-  return Boolean(AGENT_BASE);
+  return Boolean(AGENT_BASE || PLATFORM_BASE);
 }
 
 async function parseError(res: Response): Promise<ApiError> {
@@ -607,6 +659,12 @@ export const cygnusApi = {
     return cygnusRequest(PLATFORM_BASE, '/auth/user/forgot-password', {
       method: 'POST',
       body: { email },
+    });
+  },
+  loginAdmin(email: string, password: string): Promise<PersistedAdminSession> {
+    return cygnusRequest(PLATFORM_BASE, '/auth/admin/login', {
+      method: 'POST',
+      body: { email, password },
     });
   },
   acceptInviteSetPassword(token: string, password: string): Promise<void> {
@@ -1315,6 +1373,136 @@ export const cygnusApi = {
   },
   listInvoices(participantDid: string): Promise<CygnusInvoice[]> {
     return cygnusRequest(AGENT_BASE, `/invoices/${encodeURIComponent(participantDid)}`, {
+      authMode: 'user',
+    });
+  },
+
+  // ── Complete Remaining Non-Internal Platform & Agent Routes ─
+  getParticipantMe(): Promise<CygnusAdminParticipant> {
+    return cygnusRequest(PLATFORM_BASE, '/participants/me', { authMode: 'user' });
+  },
+  getParticipant(did: string): Promise<CygnusAdminParticipant> {
+    return cygnusRequest(PLATFORM_BASE, `/participants/${encodeURIComponent(did)}`, {
+      authMode: 'admin',
+    });
+  },
+  updateParticipant(did: string, body: Record<string, unknown>): Promise<CygnusAdminParticipant> {
+    return cygnusRequest(PLATFORM_BASE, `/participants/${encodeURIComponent(did)}`, {
+      method: 'PATCH',
+      body,
+      authMode: 'admin',
+    });
+  },
+  getParticipantBpnByRole(role: 'PROV' | 'CONS'): Promise<{ did: string; bpn: string }> {
+    return cygnusRequest(PLATFORM_BASE, `/participants/by-role/${encodeURIComponent(role)}/bpn`, {
+      authMode: 'admin',
+    });
+  },
+  onboardInit(body: { name: string; role: 'PROV' | 'CONS'; contactEmail?: string }): Promise<unknown> {
+    return cygnusRequest(PLATFORM_BASE, '/onboarding/init', {
+      method: 'POST',
+      body,
+      authMode: 'admin',
+    });
+  },
+  onboardComplete(body: {
+    participantId: string;
+    mode?: 'hosted' | 'self-hosted';
+    connectorDspUrl?: string;
+  }): Promise<unknown> {
+    return cygnusRequest(PLATFORM_BASE, '/onboarding/complete', {
+      method: 'POST',
+      body,
+      authMode: 'admin',
+    });
+  },
+  getDatasetReliability(datasetId: string): Promise<unknown> {
+    return cygnusRequest(
+      PLATFORM_BASE,
+      `/catalog/${encodeURIComponent(datasetId)}/reliability`,
+      { authMode: 'user' },
+    );
+  },
+  searchPlatformCatalog(q = ''): Promise<CygnusCatalogDataset[]> {
+    const suffix = q ? `?q=${encodeURIComponent(q)}&limit=50` : '?limit=50';
+    return cygnusRequest(PLATFORM_BASE, `/catalog/datasets/search${suffix}`, { authMode: 'user' });
+  },
+  createCatalogDataset(body: Record<string, unknown>): Promise<unknown> {
+    return cygnusRequest(AGENT_BASE, '/catalog', {
+      method: 'POST',
+      body,
+      authMode: 'user',
+    });
+  },
+  deletePlatformCatalogDataset(id: string): Promise<void> {
+    return cygnusRequest(PLATFORM_BASE, `/catalog/datasets/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      authMode: 'admin',
+    });
+  },
+  getAasSubmodel(assetId: string): Promise<unknown> {
+    return cygnusRequest(PLATFORM_BASE, `/aas/${encodeURIComponent(assetId)}`, {
+      authMode: 'user',
+    });
+  },
+  getConsentStatus(
+    consumerDid: string,
+    datasetId: string,
+    purposeId?: string,
+  ): Promise<CygnusConsentRecord> {
+    const q = new URLSearchParams({ consumerDid, datasetId });
+    if (purposeId) q.set('purposeId', purposeId);
+    return cygnusRequest(PLATFORM_BASE, `/consent/status?${q.toString()}`, { authMode: 'user' });
+  },
+  revokeConsent(consentId: string): Promise<CygnusConsentRecord> {
+    return cygnusRequest(
+      PLATFORM_BASE,
+      `/consent/requests/${encodeURIComponent(consentId)}/revoke`,
+      { method: 'POST', authMode: 'user' },
+    );
+  },
+  eraseConsentRecordsByDid(did: string): Promise<void> {
+    return cygnusRequest(PLATFORM_BASE, `/consent/records/${encodeURIComponent(did)}`, {
+      method: 'DELETE',
+      authMode: 'admin',
+    });
+  },
+  getOrder(orderId: string): Promise<CygnusOrder> {
+    return cygnusRequest(PLATFORM_BASE, `/orders/${encodeURIComponent(orderId)}`, {
+      authMode: 'user',
+    });
+  },
+  refundOrder(orderId: string): Promise<unknown> {
+    return cygnusRequest(PLATFORM_BASE, `/orders/${encodeURIComponent(orderId)}/refund`, {
+      method: 'POST',
+      authMode: 'admin',
+    });
+  },
+  listMandates(): Promise<CygnusMandate[]> {
+    return cygnusRequest(PLATFORM_BASE, '/mandates', { authMode: 'user' });
+  },
+  getEntitlements(): Promise<unknown> {
+    return cygnusRequest(PLATFORM_BASE, '/entitlements', { authMode: 'user' });
+  },
+  getOrgManagersEmails(): Promise<string[]> {
+    return cygnusRequest(PLATFORM_BASE, '/org/managers-emails', { authMode: 'user' });
+  },
+  verifyAuditRange(fromISO: string, toISO: string): Promise<unknown> {
+    return cygnusRequest(
+      PLATFORM_BASE,
+      `/ledger/verify?from=${encodeURIComponent(fromISO)}&to=${encodeURIComponent(toISO)}`,
+      { authMode: 'admin' },
+    );
+  },
+  getSubscription(id: string): Promise<CygnusSubscription> {
+    return cygnusRequest(AGENT_BASE, `/subscriptions/${encodeURIComponent(id)}`, {
+      authMode: 'user',
+    });
+  },
+  recordContractAudit(body: Record<string, unknown>): Promise<unknown> {
+    return cygnusRequest(PLATFORM_BASE, '/contracts', {
+      method: 'POST',
+      body,
       authMode: 'user',
     });
   },

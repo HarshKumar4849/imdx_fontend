@@ -520,7 +520,7 @@ export function App() {
       kind: 'spending',
     };
     try {
-      const serverSub = await imdxApi.createSubscription(offer, purpose);
+      const serverSub = await imdxApi.createSubscription(offer, planId, purpose);
       const subscription = serverSub ?? fallbackSub;
       setStore((prev) => ({
         ...prev,

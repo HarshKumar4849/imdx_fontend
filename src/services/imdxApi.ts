@@ -39,6 +39,7 @@ import type { DocumentSlotKey, OnboardingState } from '../types/onboarding';
 import {
   AGENT_BASE,
   ApiError,
+  canonicalContractObject,
   cygnusApi,
   isAgentConfigured,
   isPlatformConfigured,
@@ -49,6 +50,7 @@ import {
   saveAdminSession,
   saveApplicationToken,
   saveUserSession,
+  sha256Hex,
   type CygnusApplication,
   type CygnusCatalogDataset,
   type CygnusConsentRecord,
@@ -316,6 +318,44 @@ export function mapCygnusCatalogToOffers(items: CygnusCatalogDataset[]): Catalog
     };
   });
 }
+
+function toCygnusPurposeEnum(input: string, allowedList?: string | string[]): string {
+  const upper = input.trim().toUpperCase();
+  const valid = ['INDUSTRY_CORE', 'ANALYTICS', 'RESEARCH', 'SUSTAINABILITY', 'OPERATIONS'] as const;
+  let candidate: string = valid.find((v) => v === upper) ?? 'ANALYTICS';
+  if (upper.includes('ROUT') || upper.includes('TRAFFIC') || upper.includes('OPERAT')) {
+    candidate = 'OPERATIONS';
+  } else if (upper.includes('EV') || upper.includes('SUSTAIN')) {
+    candidate = 'SUSTAINABILITY';
+  } else if (upper.includes('RESEARCH') || upper.includes('MODEL')) {
+    candidate = 'RESEARCH';
+  } else if (upper.includes('CORE')) {
+    candidate = 'INDUSTRY_CORE';
+  }
+
+  let parsedAllowed: string[] = [];
+  if (Array.isArray(allowedList)) {
+    parsedAllowed = allowedList;
+  } else if (typeof allowedList === 'string' && allowedList.trim()) {
+    try {
+      const parsed = JSON.parse(allowedList) as unknown;
+      if (Array.isArray(parsed)) parsedAllowed = parsed.map(String);
+    } catch {
+      parsedAllowed = [];
+    }
+  }
+  if (parsedAllowed.length > 0 && !parsedAllowed.includes(candidate)) {
+    return parsedAllowed[0];
+  }
+  return candidate;
+}
+
+const PLAN_ID_TO_MODEL: Record<PlanOptionId, 'PAY_PER_USE' | 'SUBSCRIPTION' | 'HYBRID' | 'ONE_TIME'> = {
+  'pay-per-use': 'PAY_PER_USE',
+  subscription: 'SUBSCRIPTION',
+  hybrid: 'HYBRID',
+  'one-time': 'ONE_TIME',
+};
 
 export const imdxApi = {
   // ── Onboarding sync & mutations ───────────────────────────────
@@ -611,23 +651,47 @@ export const imdxApi = {
 
   async requestConsent(record: ConsentRequestRecord): Promise<void> {
     if (!isAgentConfigured() || !loadUserSession()?.token) return;
-    await cygnusApi.requestConsent(record.offerId, record.purpose);
+    let resolvedPurposeId = record.purpose;
+    const purposes = await cygnusApi.listAgentPurposes().catch(() => []);
+    if (purposes.length > 0) {
+      const q = record.purpose.toLowerCase();
+      const matched =
+        purposes.find(
+          (p) =>
+            p.id === record.purpose ||
+            p.name.toLowerCase() === q ||
+            (p.category ?? '').toLowerCase() === q ||
+            q.includes(p.name.toLowerCase()),
+        ) ?? purposes[0];
+      if (matched) resolvedPurposeId = matched.id;
+    }
+    await cygnusApi.requestConsent(record.offerId, resolvedPurposeId);
   },
 
   async createSubscription(
     offer: CatalogOffer,
+    planId: PlanOptionId,
     purpose: string,
-    offerId?: string,
   ): Promise<SubscriptionRecord | null> {
     if (!isAgentConfigured() || !loadUserSession()?.token) return null;
     const targetOffer = CATALOG_OFFERS.find((o) => o.id === offer.id);
+    const datasetId = offer.datasetId || targetOffer?.datasetId || offer.id;
+    const detail = await cygnusApi.getCatalogDataset(datasetId);
+    const canonical = JSON.stringify(canonicalContractObject(detail));
+    const termsHash = await sha256Hex(canonical);
+    const desiredModel = PLAN_ID_TO_MODEL[planId];
+    const matchedOffer =
+      (detail.offers ?? []).find((o) => o.modelType === desiredModel) ?? detail.offers?.[0];
+    if (!matchedOffer) {
+      throw new ApiError(422, 'No enabled pricing offer found for this dataset.');
+    }
     const res = await cygnusApi.createSubscription({
-      datasetId: offer.datasetId || targetOffer?.datasetId || offer.id,
-      providerDid: offer.did,
-      purpose,
-      agreedTermsVersion: 2,
-      termsHash: offer.id,
-      offerId: offerId || offer.id,
+      datasetId,
+      providerDid: detail.providerDid || offer.did,
+      purpose: toCygnusPurposeEnum(purpose, detail.allowedPurposes),
+      agreedTermsVersion: detail.termsVersion ?? 1,
+      termsHash,
+      offerId: matchedOffer.id,
     });
     return mapCygnusSubscription(res.subscription);
   },
