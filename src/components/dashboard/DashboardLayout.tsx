@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import imdxLogoDark from '../../assets/imdx-logo-dark.webp';
 import searchIcon from '../../assets/search-icon.svg';
@@ -158,6 +158,33 @@ export function DashboardLayout({
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSupportNotice, setShowSupportNotice] = useState(false);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showNotifications) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        notificationsRef.current &&
+        !notificationsRef.current.contains(event.target as Node)
+      ) {
+        setShowNotifications(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowNotifications(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showNotifications]);
 
   const activeRouteKey = `${portalMode}-${portalMode === 'workspace' ? activeWorkspaceNav : activeAdminNav}`;
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -257,12 +284,13 @@ export function DashboardLayout({
             </button>
           </div>
 
-          <div className="relative">
+          <div ref={notificationsRef} className="relative">
             <button
               type="button"
               onClick={() => setShowNotifications((prev) => !prev)}
               className="relative flex items-center justify-center size-8 rounded-full hover:bg-[#f1f5f9] text-[#475569] cursor-pointer"
               aria-label="Notifications"
+              aria-expanded={showNotifications}
             >
               <svg
                 width="17"
@@ -285,16 +313,19 @@ export function DashboardLayout({
             </button>
 
             {showNotifications && (
-              <div className="imdx-modal-panel imdx-modal-surface absolute right-0 mt-2 w-[min(310px,calc(100vw-24px))] rounded-[12px] p-3 text-[12px] z-40 space-y-2">
-                <div className="flex items-center justify-between border-b border-[#f1f5f9] pb-1.5">
+              <div className="imdx-modal-panel imdx-modal-surface absolute right-0 mt-2 w-[min(320px,calc(100vw-24px))] rounded-[12px] p-3 text-[12px] z-50 space-y-2">
+                <div className="flex items-center justify-between border-b border-[#008fc3]/15 pb-1.5">
                   <span className="font-semibold text-[#102529]">
                     Notifications ({unreadCount} unread)
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5">
                     {unreadCount > 0 && (
                       <button
                         type="button"
-                        onClick={onMarkAllNotificationsRead}
+                        onClick={() => {
+                          onMarkAllNotificationsRead();
+                          setShowNotifications(false);
+                        }}
                         className="text-[#059669] font-medium hover:underline cursor-pointer"
                       >
                         Mark all
@@ -303,36 +334,41 @@ export function DashboardLayout({
                     <button
                       type="button"
                       onClick={() => setShowNotifications(false)}
-                      className="text-[#64748b] hover:text-[#102529] cursor-pointer"
+                      className="text-[#64748b] hover:text-[#102529] font-semibold px-1 cursor-pointer"
+                      aria-label="Close notifications"
                     >
-                      Close
+                      Close &times;
                     </button>
                   </div>
                 </div>
-                <div className="max-h-[240px] overflow-y-auto divide-y divide-[#f1f5f9]">
-                  {notifications.slice(0, 6).map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        onMarkNotificationRead(item.id);
-                        if (item.targetNav) {
-                          onPortalModeChange('workspace');
-                          onWorkspaceNavChange(item.targetNav);
-                        }
-                        setShowNotifications(false);
-                      }}
-                      className={`w-full text-left py-2 px-1.5 rounded hover:bg-[#f8fafc] cursor-pointer transition-colors ${
-                        item.read ? 'opacity-65' : ''
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-[#002456] truncate">{item.title}</span>
-                        <span className="text-[10px] text-[#94a3b8] shrink-0">{item.timestamp}</span>
-                      </div>
-                      <p className="mt-0.5 text-[#475569] leading-snug">{item.detail}</p>
-                    </button>
-                  ))}
+                <div className="max-h-[240px] overflow-y-auto divide-y divide-[#008fc3]/10">
+                  {notifications.length === 0 ? (
+                    <p className="py-4 text-center text-[#64748b]">No notifications yet.</p>
+                  ) : (
+                    notifications.slice(0, 6).map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          onMarkNotificationRead(item.id);
+                          if (item.targetNav) {
+                            onPortalModeChange('workspace');
+                            onWorkspaceNavChange(item.targetNav);
+                          }
+                          setShowNotifications(false);
+                        }}
+                        className={`w-full text-left py-2 px-1.5 rounded hover:bg-white/60 cursor-pointer transition-colors ${
+                          item.read ? 'opacity-65' : ''
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-semibold text-[#002456] truncate">{item.title}</span>
+                          <span className="text-[10px] text-[#94a3b8] shrink-0">{item.timestamp}</span>
+                        </div>
+                        <p className="mt-0.5 text-[#475569] leading-snug">{item.detail}</p>
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
             )}
