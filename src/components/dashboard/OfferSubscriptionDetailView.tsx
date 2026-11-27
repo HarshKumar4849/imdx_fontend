@@ -5,6 +5,7 @@ import type {
   PlanOptionId,
   SubscriptionRecord,
 } from '../../types/dashboard';
+import { CheckCircleIcon, ShieldCheckIcon } from '../icons/ImdxIcons';
 
 export type OfferDetailTab = 'overview' | 'specifications' | 'quality';
 
@@ -160,7 +161,8 @@ export function OfferSubscriptionDetailView({
             <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px]">
               <span className="text-[#475569]">{offer.publisher}</span>
               <span className="inline-flex items-center gap-1 rounded-full bg-[#e9faf5] border border-[#10b981]/25 px-2.5 py-0.5 text-[11px] font-semibold text-[#059669]">
-                ✓ Verified Provider
+                <ShieldCheckIcon size={12} />
+                <span>Verified Provider</span>
               </span>
             </div>
           </div>
@@ -342,17 +344,25 @@ export function OfferSubscriptionDetailView({
               <button
                 type="button"
                 onClick={handleRequestConsent}
-                className={`w-full h-[36px] rounded-full text-[13px] font-semibold transition-colors cursor-pointer ${
+                className={`w-full h-[36px] rounded-full text-[13px] font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                   isConsentRequested
                     ? 'bg-[#dcfce7] text-[#15803d] border border-[#16a34a]/30'
                     : 'bg-[#22b59b] hover:bg-[#1ca18a] text-white'
                 }`}
               >
-                {consent?.status === 'Granted'
-                  ? 'Consent Granted ✓'
-                  : isConsentRequested
-                    ? 'Consent Requested ✓'
-                    : 'Request Consent'}
+                {consent?.status === 'Granted' ? (
+                  <>
+                    <CheckCircleIcon size={14} />
+                    <span>Consent Granted</span>
+                  </>
+                ) : isConsentRequested ? (
+                  <>
+                    <CheckCircleIcon size={14} />
+                    <span>Consent Requested</span>
+                  </>
+                ) : (
+                  'Request Consent'
+                )}
               </button>
             </div>
           </div>
@@ -412,7 +422,7 @@ export function OfferSubscriptionDetailView({
             </div>
 
             <div className="rounded-[8px] border border-[#a7f3d0] bg-[#e9faf5] px-3 py-2 flex items-center gap-2 text-[11.5px] font-medium text-[#065f46]">
-              <span>🛡</span>
+              <ShieldCheckIcon size={14} className="shrink-0 text-[#059669]" />
               <span>Contract protected by IMDX consent and access controls</span>
             </div>
           </div>
@@ -588,13 +598,20 @@ export function OfferSubscriptionDetailView({
           <button
             type="button"
             onClick={handleSubscribe}
-            className={`h-[34px] px-7 rounded-full text-[12.5px] font-semibold transition-colors cursor-pointer ${
+            className={`h-[34px] px-7 rounded-full text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
               isSubscribed
                 ? 'bg-[#dcfce7] text-[#15803d] border border-[#16a34a]/30'
                 : 'bg-[#22b59b] hover:bg-[#1ca18a] text-white'
             }`}
           >
-            {isSubscribed ? 'Subscribed ✓' : 'Subscribe'}
+            {isSubscribed ? (
+              <>
+                <CheckCircleIcon size={14} />
+                <span>Subscribed</span>
+              </>
+            ) : (
+              'Subscribe'
+            )}
           </button>
         </div>
       </div>

@@ -21,6 +21,23 @@ import type {
 } from '../../types/dashboard';
 import type { OnboardingState } from '../../types/onboarding';
 import { OfferSubscriptionDetailView } from './OfferSubscriptionDetailView';
+import {
+  ArrowDownLeftIcon,
+  ArrowLeftRightIcon,
+  ArrowUpRightIcon,
+  BuildingIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  CreditCardIcon,
+  DatabaseIcon,
+  DownloadIcon,
+  FileTextIcon,
+  ReceiptIcon,
+  RefreshCwIcon,
+  SlidersIcon,
+  WalletIcon,
+  XCircleIcon,
+} from '../icons/ImdxIcons';
 
 interface SubscriptionsPageProps {
   subscriptions: SubscriptionRecord[];
@@ -249,9 +266,16 @@ export function SubscriptionsPage({
                   <button
                     type="button"
                     onClick={() => handleCopyEndpoint(detailOffer.id, detailOffer.endpointUrl)}
-                    className="h-[32px] px-3.5 rounded-full border border-[#cbd5e1] bg-white text-[12px] font-semibold text-[#102529] cursor-pointer"
+                    className="h-[32px] px-3.5 rounded-full border border-[#cbd5e1] bg-white text-[12px] font-semibold text-[#102529] inline-flex items-center gap-1 cursor-pointer"
                   >
-                    {copiedId === detailOffer.id ? 'Copied ✓' : 'Copy URL'}
+                    {copiedId === detailOffer.id ? (
+                      <>
+                        <CheckCircleIcon size={13} className="text-[#059669]" />
+                        <span>Copied</span>
+                      </>
+                    ) : (
+                      'Copy URL'
+                    )}
                   </button>
                   <button
                     type="button"
@@ -322,11 +346,32 @@ export function SubscriptionsPage({
                 label: 'Total Subscriptions',
                 value: enrichedAll.length,
                 sub: 'Across all agreements',
+                icon: <FileTextIcon size={15} />,
               },
-              { label: 'Active', value: activeCount, sub: 'Authorized data access' },
-              { label: 'Pending Activation', value: pendingCount, sub: 'Awaiting approval' },
-              { label: 'Expiring Soon', value: 0, sub: 'Within next 30 days' },
-              { label: 'Paused / Expired', value: pausedCount, sub: 'Across all agreements' },
+              {
+                label: 'Active',
+                value: activeCount,
+                sub: 'Authorized data access',
+                icon: <CheckCircleIcon size={15} />,
+              },
+              {
+                label: 'Pending Activation',
+                value: pendingCount,
+                sub: 'Awaiting approval',
+                icon: <ClockIcon size={15} />,
+              },
+              {
+                label: 'Expiring Soon',
+                value: 0,
+                sub: 'Within next 30 days',
+                icon: <ClockIcon size={15} />,
+              },
+              {
+                label: 'Paused / Expired',
+                value: pausedCount,
+                sub: 'Across all agreements',
+                icon: <XCircleIcon size={15} />,
+              },
             ].map((kpi, idx) => (
               <div
                 key={kpi.label}
@@ -335,8 +380,8 @@ export function SubscriptionsPage({
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-[12px] text-[#64748b]">{kpi.label}</p>
-                  <span className="flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] text-[12px] font-bold shrink-0">
-                    ▤
+                  <span className="flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] shrink-0">
+                    {kpi.icon}
                   </span>
                 </div>
                 <p className="text-[24px] font-bold text-[#102529] leading-tight">
@@ -642,17 +687,26 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
         <button
           type="button"
           onClick={onTriggerSync}
-          className="h-[34px] px-4 rounded-full imdx-btn-primary text-[12.5px] font-semibold cursor-pointer"
+          className="h-[34px] px-4 rounded-full imdx-btn-primary text-[12.5px] font-semibold inline-flex items-center gap-1.5 cursor-pointer"
         >
-          ↻ Trigger Connector Sync
+          <RefreshCwIcon size={14} />
+          <span>Trigger Connector Sync</span>
         </button>
       </div>
 
       {/* Role Direction Pills matching screenshot */}
       <div className="flex flex-wrap items-center gap-2">
         {[
-          { key: 'Outbound' as const, label: '↗ Provider · Outgoing' },
-          { key: 'Inbound' as const, label: '↙ Consumer · Incoming' },
+          {
+            key: 'Outbound' as const,
+            label: 'Provider · Outgoing',
+            icon: <ArrowUpRightIcon size={13} />,
+          },
+          {
+            key: 'Inbound' as const,
+            label: 'Consumer · Incoming',
+            icon: <ArrowDownLeftIcon size={13} />,
+          },
         ].map((pill) => {
           const active = directionFilter === pill.key;
           return (
@@ -662,13 +716,14 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
               onClick={() =>
                 setDirectionFilter((prev) => (prev === pill.key ? 'All' : pill.key))
               }
-              className={`h-[30px] px-3.5 rounded-full text-[12px] font-medium border cursor-pointer transition-colors ${
+              className={`h-[30px] px-3.5 rounded-full text-[12px] font-medium border inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
                 active
                   ? 'bg-[#e9faf5] border-[#10b981] text-[#059669]'
                   : 'bg-white border-[#cbd5e1] text-[#334155] hover:border-[#008fa7]'
               }`}
             >
-              {pill.label}
+              {pill.icon}
+              <span>{pill.label}</span>
             </button>
           );
         })}
@@ -681,21 +736,25 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
             label: 'Total Transfers',
             value: String(transfers.length),
             sub: `${outboundCount} outgoing · ${inboundCount} incoming`,
+            icon: <ArrowLeftRightIcon size={15} />,
           },
           {
             label: 'Successful',
             value: String(completedCount),
             sub: `${Math.round((completedCount / Math.max(1, transfers.length)) * 100)}% completion rate`,
+            icon: <CheckCircleIcon size={15} />,
           },
           {
             label: 'Active / Processing',
             value: String(streamingCount),
             sub: 'Live connector streams',
+            icon: <ClockIcon size={15} />,
           },
           {
             label: 'Total Data Exchanged',
             value: '2.84 GB',
             sub: 'Delivered & received volume',
+            icon: <DatabaseIcon size={15} />,
           },
         ].map((kpi, idx) => (
           <div
@@ -705,8 +764,8 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
           >
             <div className="flex items-start justify-between gap-2">
               <p className="text-[12px] text-[#64748b]">{kpi.label}</p>
-              <span className="flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] text-[12px] font-bold shrink-0">
-                ⇄
+              <span className="flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] shrink-0">
+                {kpi.icon}
               </span>
             </div>
             <p className="text-[24px] font-bold text-[#102529] leading-tight">{kpi.value}</p>
@@ -778,7 +837,14 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
                   <td className="py-3 px-3 font-semibold text-[#102529]">{tx.dataset}</td>
                   <td className="py-3 px-3 font-mono text-[11.5px]">{tx.protocol}</td>
                   <td className="py-3 px-3 whitespace-nowrap font-medium">
-                    {tx.direction === 'Outbound' ? '↗ Outgoing' : '↙ Incoming'}
+                    <span className="inline-flex items-center gap-1.5">
+                      {tx.direction === 'Outbound' ? (
+                        <ArrowUpRightIcon size={14} className="text-[#059669]" />
+                      ) : (
+                        <ArrowDownLeftIcon size={14} className="text-[#0284c7]" />
+                      )}
+                      <span>{tx.direction === 'Outbound' ? 'Outgoing' : 'Incoming'}</span>
+                    </span>
                   </td>
                   <td className="py-3 px-3 font-mono">{tx.volume}</td>
                   <td className="py-3 px-3 whitespace-nowrap">{tx.timestamp}</td>
@@ -1209,14 +1275,29 @@ export function BillingPage({
       {/* 4 Financial KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
         {[
-          { label: 'Total Earnings', value: formatInrCompact(totalEarnings), sub: '₹8.4L this month', symbol: '₹' },
-          { label: 'Pending Payouts', value: '₹3.2L', sub: 'Next payout - 30 Nov', symbol: '◷' },
-          { label: 'Total Spent', value: formatInrCompact(totalSpent), sub: '₹3.7L this month', symbol: '▥' },
+          {
+            label: 'Total Earnings',
+            value: formatInrCompact(totalEarnings),
+            sub: '₹8.4L this month',
+            icon: <WalletIcon size={15} />,
+          },
+          {
+            label: 'Pending Payouts',
+            value: '₹3.2L',
+            sub: 'Next payout - 30 Nov',
+            icon: <ClockIcon size={15} />,
+          },
+          {
+            label: 'Total Spent',
+            value: formatInrCompact(totalSpent),
+            sub: '₹3.7L this month',
+            icon: <CreditCardIcon size={15} />,
+          },
           {
             label: 'Outstanding Invoices',
             value: formatInrCompact(pendingAmount),
             sub: `${pendingTx.length} invoice${pendingTx.length === 1 ? '' : 's'} due`,
-            symbol: '▤',
+            icon: <ReceiptIcon size={15} />,
           },
         ].map((kpi, idx) => (
           <div
@@ -1231,8 +1312,8 @@ export function BillingPage({
                   {kpi.value}
                 </p>
               </div>
-              <span className="flex items-center justify-center size-8 rounded-[8px] bg-[#e9faf5] text-[#059669] text-[13px] font-bold shrink-0">
-                {kpi.symbol}
+              <span className="flex items-center justify-center size-8 rounded-[8px] bg-[#e9faf5] text-[#059669] shrink-0">
+                {kpi.icon}
               </span>
             </div>
             <p className="text-[11px] text-[#64748b]">{kpi.sub}</p>
@@ -1356,9 +1437,10 @@ export function BillingPage({
             <button
               type="button"
               onClick={handleExportCsv}
-              className="h-[30px] px-3 rounded-[6px] border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12px] font-medium text-[#102529] cursor-pointer"
+              className="h-[30px] px-3 rounded-[6px] border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12px] font-medium text-[#102529] inline-flex items-center gap-1.5 cursor-pointer"
             >
-              ↓ Export
+              <DownloadIcon size={13} />
+              <span>Export</span>
             </button>
           </div>
         </div>
@@ -1427,25 +1509,25 @@ export function BillingPage({
       {/* Bottom 6 Quick-Access Cards matching screenshot */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {[
-          'Invoice History',
-          'Payment History',
-          'Payout Details',
-          'Payment Methods',
-          'Tax Information',
-          'Billing Preferences',
-        ].map((title, idx) => (
+          { title: 'Invoice History', icon: <ReceiptIcon size={14} /> },
+          { title: 'Payment History', icon: <ClockIcon size={14} /> },
+          { title: 'Payout Details', icon: <WalletIcon size={14} /> },
+          { title: 'Payment Methods', icon: <CreditCardIcon size={14} /> },
+          { title: 'Tax Information', icon: <BuildingIcon size={14} /> },
+          { title: 'Billing Preferences', icon: <SlidersIcon size={14} /> },
+        ].map((item, idx) => (
           <button
-            key={title}
+            key={item.title}
             type="button"
-            onClick={() => setActiveQuickCard(title)}
+            onClick={() => setActiveQuickCard(item.title)}
             style={{ ['--stagger-i' as string]: idx }}
             className="imdx-stagger-card imdx-card-interactive rounded-[10px] px-4 py-3 flex items-center justify-between gap-3 text-left cursor-pointer"
           >
             <div className="flex items-center gap-2.5">
-              <span className="flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] text-[12px] font-bold">
-                ▤
+              <span className="flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] shrink-0">
+                {item.icon}
               </span>
-              <span className="text-[13px] font-semibold text-[#102529]">{title}</span>
+              <span className="text-[13px] font-semibold text-[#102529]">{item.title}</span>
             </div>
             <span className="text-[#64748b] font-semibold">&gt;</span>
           </button>

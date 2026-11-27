@@ -34,6 +34,19 @@ import {
   type VerificationRecord,
 } from './admin/AdminShared';
 import { downloadCsv } from '../../utils/adminCsv';
+import {
+  ArrowLeftRightIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  DatabaseIcon,
+  DownloadIcon,
+  FileTextIcon,
+  RefreshCwIcon,
+  ShieldCheckIcon,
+  TargetIcon,
+  UsersIcon,
+  XCircleIcon,
+} from '../icons/ImdxIcons';
 
 interface AdminDashboardViewProps {
   activeNav: AdminNavKey;
@@ -739,9 +752,10 @@ export function AdminDashboardView({
               <button
                 type="button"
                 onClick={fetchLiveDashboardData}
-                className="h-[34px] px-3.5 rounded-[8px] border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12.5px] font-semibold text-[#102529] cursor-pointer"
+                className="h-[34px] px-3.5 rounded-[8px] border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12.5px] font-semibold text-[#102529] inline-flex items-center gap-1.5 cursor-pointer"
               >
-                Refresh
+                <RefreshCwIcon size={13} />
+                <span>Refresh</span>
               </button>
               <button
                 type="button"
@@ -759,9 +773,10 @@ export function AdminDashboardView({
                   );
                   setAdminActionNote('Platform report exported as CSV.');
                 }}
-                className="h-[34px] px-4 rounded-full imdx-btn-primary text-[12.5px] font-semibold cursor-pointer"
+                className="h-[34px] px-4 rounded-full imdx-btn-primary text-[12.5px] font-semibold inline-flex items-center gap-1.5 cursor-pointer"
               >
-                Export Report
+                <DownloadIcon size={13} />
+                <span>Export Report</span>
               </button>
             </>
           )}
@@ -778,9 +793,10 @@ export function AdminDashboardView({
                   );
                   setAdminActionNote('Participant registry exported.');
                 }}
-                className="h-[34px] px-3.5 rounded-full border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12.5px] font-semibold text-[#102529] cursor-pointer"
+                className="h-[34px] px-3.5 rounded-full border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12.5px] font-semibold text-[#102529] inline-flex items-center gap-1.5 cursor-pointer"
               >
-                Export Registry
+                <DownloadIcon size={13} />
+                <span>Export Registry</span>
               </button>
               <button
                 type="button"
@@ -796,9 +812,10 @@ export function AdminDashboardView({
             <button
               type="button"
               onClick={refreshLiveApplications}
-              className="h-[34px] px-4 rounded-full imdx-btn-primary text-[12.5px] font-semibold cursor-pointer"
+              className="h-[34px] px-4 rounded-full imdx-btn-primary text-[12.5px] font-semibold inline-flex items-center gap-1.5 cursor-pointer"
             >
-              Refresh Queue
+              <RefreshCwIcon size={13} />
+              <span>Refresh Queue</span>
             </button>
           )}
 
@@ -835,9 +852,10 @@ export function AdminDashboardView({
                 );
                 setAdminActionNote('Audit logs exported as CSV.');
               }}
-              className="h-[34px] px-3.5 rounded-full border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12.5px] font-semibold text-[#102529] cursor-pointer"
+              className="h-[34px] px-3.5 rounded-full border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12.5px] font-semibold text-[#102529] inline-flex items-center gap-1.5 cursor-pointer"
             >
-              Export Logs
+              <DownloadIcon size={13} />
+              <span>Export Logs</span>
             </button>
           )}
 
@@ -869,7 +887,8 @@ export function AdminDashboardView({
               value={adminStats ? adminStats.participants : mergedParticipants.length}
               subtext={`${mergedParticipants.filter((p) => p.status === 'Active').length} active organizations`}
               boxBg="bg-[#e9fffa]"
-              dotColor="bg-[#10b981]"
+              iconColor="text-[#059669]"
+              icon={<UsersIcon size={16} />}
             />
             <AdminKpiCard
               index={1}
@@ -877,7 +896,8 @@ export function AdminDashboardView({
               value={adminStats ? adminStats.orders : subscriptionsCount}
               subtext="Platform exchange orders"
               boxBg="bg-[#e6ecff]"
-              dotColor="bg-[#3553ab]"
+              iconColor="text-[#1d4ed8]"
+              icon={<ArrowLeftRightIcon size={16} />}
             />
             <AdminKpiCard
               index={2}
@@ -885,7 +905,8 @@ export function AdminDashboardView({
               value={adminStats ? adminStats.datasets : datasets.length}
               subtext="Registered catalog offers"
               boxBg="bg-[#ecfdf5]"
-              dotColor="bg-[#059669]"
+              iconColor="text-[#059669]"
+              icon={<DatabaseIcon size={16} />}
             />
             <AdminKpiCard
               index={3}
@@ -893,7 +914,8 @@ export function AdminDashboardView({
               value={pendingApprovalsCount}
               subtext="Awaiting governance review"
               boxBg="bg-[#fef3c7]"
-              dotColor="bg-[#d97706]"
+              iconColor="text-[#d97706]"
+              icon={<ClockIcon size={16} />}
             />
             <AdminKpiCard
               index={4}
@@ -901,7 +923,8 @@ export function AdminDashboardView({
               value={adminStats ? adminStats.purposes : mergedPurposes.length}
               subtext={`${mergedPurposes.filter((p) => p.active).length} active, ${mergedPurposes.filter((p) => !p.active).length} inactive`}
               boxBg="bg-[#f0f9ff]"
-              dotColor="bg-[#008fa7]"
+              iconColor="text-[#008fa7]"
+              icon={<TargetIcon size={16} />}
             />
           </div>
 
@@ -994,8 +1017,8 @@ export function AdminDashboardView({
               </div>
 
               <div className="rounded-[10px] bg-[#ecfdf5] border border-[#bbf7d0] px-3.5 py-2.5 flex items-center gap-2.5">
-                <span className="size-6 rounded-full bg-[#dcfce7] text-[#15803d] flex items-center justify-center text-[12px] font-bold">
-                  ✓
+                <span className="size-7 rounded-full bg-[#dcfce7] text-[#15803d] flex items-center justify-center shrink-0">
+                  <CheckCircleIcon size={16} />
                 </span>
                 <div>
                   <p className="text-[13px] font-semibold text-[#14532d]">
@@ -1172,7 +1195,8 @@ export function AdminDashboardView({
                 value={mergedParticipants.length}
                 subtext="Registered organizations"
                 boxBg="bg-[#e9fffa]"
-                dotColor="bg-[#10b981]"
+                iconColor="text-[#059669]"
+                icon={<UsersIcon size={16} />}
               />
               <AdminKpiCard
                 index={1}
@@ -1180,7 +1204,8 @@ export function AdminDashboardView({
                 value={mergedParticipants.filter((p) => p.status === 'Active').length}
                 subtext="Live workspace credentials"
                 boxBg="bg-[#dcfce7]"
-                dotColor="bg-[#16a34a]"
+                iconColor="text-[#16a34a]"
+                icon={<CheckCircleIcon size={16} />}
               />
               <AdminKpiCard
                 index={2}
@@ -1188,7 +1213,8 @@ export function AdminDashboardView({
                 value={pendingApprovalsCount}
                 subtext="Awaiting verification"
                 boxBg="bg-[#fef3c7]"
-                dotColor="bg-[#d97706]"
+                iconColor="text-[#d97706]"
+                icon={<ClockIcon size={16} />}
               />
               <AdminKpiCard
                 index={3}
@@ -1196,7 +1222,8 @@ export function AdminDashboardView({
                 value={mergedParticipants.filter((p) => p.status === 'Suspended').length}
                 subtext="Restricted access"
                 boxBg="bg-[#fee2e2]"
-                dotColor="bg-[#dc2626]"
+                iconColor="text-[#dc2626]"
+                icon={<XCircleIcon size={16} />}
               />
             </div>
 
@@ -1482,7 +1509,8 @@ export function AdminDashboardView({
                 value={totalAppsCount}
                 subtext="All time"
                 boxBg="bg-[#e9fffa]"
-                dotColor="bg-[#10b981]"
+                iconColor="text-[#059669]"
+                icon={<FileTextIcon size={16} />}
               />
               <AdminKpiCard
                 index={1}
@@ -1490,7 +1518,8 @@ export function AdminDashboardView({
                 value={submittedCount}
                 subtext="Awaiting initial review"
                 boxBg="bg-[#fef3c7]"
-                dotColor="bg-[#d97706]"
+                iconColor="text-[#d97706]"
+                icon={<ClockIcon size={16} />}
               />
               <AdminKpiCard
                 index={2}
@@ -1498,7 +1527,8 @@ export function AdminDashboardView({
                 value={needsInfoCount}
                 subtext="Info clarification sent"
                 boxBg="bg-[#fff7ed]"
-                dotColor="bg-[#f97316]"
+                iconColor="text-[#f97316]"
+                icon={<ClockIcon size={16} />}
               />
               <AdminKpiCard
                 index={3}
@@ -1506,7 +1536,8 @@ export function AdminDashboardView({
                 value={approvedCount}
                 subtext={`${Math.round((approvedCount / Math.max(1, totalAppsCount)) * 100)}% approval rate`}
                 boxBg="bg-[#dcfce7]"
-                dotColor="bg-[#16a34a]"
+                iconColor="text-[#16a34a]"
+                icon={<CheckCircleIcon size={16} />}
               />
               <AdminKpiCard
                 index={4}
@@ -1514,7 +1545,8 @@ export function AdminDashboardView({
                 value={rejectedCount}
                 subtext="Closed dossiers"
                 boxBg="bg-[#fee2e2]"
-                dotColor="bg-[#dc2626]"
+                iconColor="text-[#dc2626]"
+                icon={<XCircleIcon size={16} />}
               />
             </div>
 
@@ -1726,8 +1758,8 @@ export function AdminDashboardView({
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="size-8 rounded-[8px] bg-[#f1f5f9] border border-[#e2e8f0] flex items-center justify-center text-[#002456] text-[14px]">
-                      🛡
+                    <span className="size-8 rounded-[8px] bg-[#e9faf5] border border-[#bbf7d0] flex items-center justify-center text-[#059669]">
+                      <ShieldCheckIcon size={16} />
                     </span>
                     <StatusBadge status={pol.status} />
                   </div>
@@ -1985,7 +2017,8 @@ export function AdminDashboardView({
                 value={mergedPurposes.length}
                 subtext={`Across ${categories.length} categories`}
                 boxBg="bg-[#e9fffa]"
-                dotColor="bg-[#10b981]"
+                iconColor="text-[#059669]"
+                icon={<TargetIcon size={16} />}
               />
               <AdminKpiCard
                 index={1}
@@ -1993,7 +2026,8 @@ export function AdminDashboardView({
                 value={mergedPurposes.filter((p) => p.active).length}
                 subtext="Available for consent"
                 boxBg="bg-[#dcfce7]"
-                dotColor="bg-[#16a34a]"
+                iconColor="text-[#16a34a]"
+                icon={<CheckCircleIcon size={16} />}
               />
               <AdminKpiCard
                 index={2}
@@ -2001,7 +2035,8 @@ export function AdminDashboardView({
                 value={mergedPurposes.filter((p) => !p.active).length}
                 subtext="Paused for new contracts"
                 boxBg="bg-[#f1f5f9]"
-                dotColor="bg-[#64748b]"
+                iconColor="text-[#64748b]"
+                icon={<XCircleIcon size={16} />}
               />
               <AdminKpiCard
                 index={3}
@@ -2009,7 +2044,8 @@ export function AdminDashboardView({
                 value={mergedPurposes.filter((p) => p.explicitConsent === 'Yes').length}
                 subtext="DPDP enforced"
                 boxBg="bg-[#e6ecff]"
-                dotColor="bg-[#3553ab]"
+                iconColor="text-[#1d4ed8]"
+                icon={<ShieldCheckIcon size={16} />}
               />
             </div>
 

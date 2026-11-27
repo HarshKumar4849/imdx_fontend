@@ -6,6 +6,16 @@ import { isAgentHost } from '../../services/cygnusApi';
 import type { AdminNavKey, NotificationItem, WorkspaceNavKey } from '../../types/dashboard';
 import { updateCardSpotlight } from '../../utils/spotlight';
 import { InternalBackdrop } from '../InternalBackdrop';
+import {
+  ActivityPulseIcon,
+  CheckCircleIcon,
+  FileTextIcon,
+  LayersIcon,
+  NetworkIcon,
+  ShieldCheckIcon,
+  TargetIcon,
+  UsersIcon,
+} from '../icons/ImdxIcons';
 
 interface DashboardLayoutProps {
   portalMode: 'workspace' | 'admin';
@@ -54,8 +64,9 @@ function SidebarIcon({ name, active }: { name: string; active: boolean }) {
           <rect x="14" y="14" width="7" height="7" rx="1.5" />
         </svg>
       );
-    case 'datasets':
     case 'participants':
+      return <UsersIcon size={17} color={stroke} />;
+    case 'datasets':
       return (
         <svg {...common}>
           <ellipse cx="12" cy="5" rx="8" ry="3" />
@@ -63,16 +74,18 @@ function SidebarIcon({ name, active }: { name: string; active: boolean }) {
           <path d="M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6" />
         </svg>
       );
-    case 'catalog':
     case 'applications':
+      return <FileTextIcon size={17} color={stroke} />;
+    case 'catalog':
       return (
         <svg {...common}>
           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
           <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
         </svg>
       );
-    case 'subscriptions':
     case 'policies':
+      return <ShieldCheckIcon size={17} color={stroke} />;
+    case 'subscriptions':
       return (
         <svg {...common}>
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -91,8 +104,9 @@ function SidebarIcon({ name, active }: { name: string; active: boolean }) {
           <path d="M21 19H3" />
         </svg>
       );
-    case 'billing':
     case 'capacity':
+      return <LayersIcon size={17} color={stroke} />;
+    case 'billing':
       return (
         <svg {...common}>
           <rect x="2" y="5" width="20" height="14" rx="2" />
@@ -100,25 +114,11 @@ function SidebarIcon({ name, active }: { name: string; active: boolean }) {
         </svg>
       );
     case 'purposes':
-      return (
-        <svg {...common}>
-          <circle cx="12" cy="12" r="9" />
-          <circle cx="12" cy="12" r="4" />
-        </svg>
-      );
+      return <TargetIcon size={17} color={stroke} />;
     case 'verify-audit':
-      return (
-        <svg {...common}>
-          <path d="M9 12l2 2 4-4" />
-          <circle cx="12" cy="12" r="9" />
-        </svg>
-      );
+      return <CheckCircleIcon size={17} color={stroke} />;
     case 'cluster-health':
-      return (
-        <svg {...common}>
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-        </svg>
-      );
+      return <ActivityPulseIcon size={17} color={stroke} />;
     default:
       return (
         <svg {...common}>
@@ -600,7 +600,8 @@ export function DashboardLayout({
                   <div className="imdx-subbox rounded-[10px] px-3 py-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex items-center gap-1.5 text-[12px] font-semibold text-[#102529]">
-                        <span className="text-[#008fa7]">☍</span> IMDX Network
+                        <NetworkIcon size={14} className="text-[#008fa7] shrink-0" />
+                        <span>IMDX Network</span>
                       </span>
                       <span className="flex items-center gap-1 text-[11px] font-medium text-[#059669]">
                         <span className="size-1.5 rounded-full bg-[#10b981]" />

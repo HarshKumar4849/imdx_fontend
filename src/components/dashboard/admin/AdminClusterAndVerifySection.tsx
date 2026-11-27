@@ -11,6 +11,14 @@ import {
 } from '../../../services/cygnusApi';
 import type { AdminNavKey, AdminParticipant } from '../../../types/dashboard';
 import { AdminKpiCard, StatusBadge, type VerificationRecord } from './AdminShared';
+import {
+  AlertTriangleIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  InfoCircleIcon,
+  RefreshCwIcon,
+  ShieldCheckIcon,
+} from '../../icons/ImdxIcons';
 
 interface AdminUserAccount {
   id: string;
@@ -464,9 +472,10 @@ export function AdminClusterAndVerifySection({
           <button
             type="button"
             onClick={onRefreshClusterHealth}
-            className="h-[32px] px-3.5 rounded-full border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12px] font-semibold text-[#102529] cursor-pointer"
+            className="h-[32px] px-3.5 rounded-full border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12px] font-semibold text-[#102529] inline-flex items-center gap-1.5 cursor-pointer"
           >
-            Refresh Now
+            <RefreshCwIcon size={13} />
+            <span>Refresh Now</span>
           </button>
         </div>
 
@@ -479,8 +488,8 @@ export function AdminClusterAndVerifySection({
           }`}
         >
           <div className="flex items-center gap-3.5">
-            <div className="size-10 rounded-full bg-[#10b981]/20 border border-[#34d399]/50 flex items-center justify-center text-[#34d399] font-bold">
-              {overallHealthy ? '✓' : '!'}
+            <div className="size-10 rounded-full bg-[#10b981]/20 border border-[#34d399]/50 flex items-center justify-center text-[#34d399]">
+              {overallHealthy ? <CheckCircleIcon size={20} /> : <AlertTriangleIcon size={20} />}
             </div>
             <div>
               <p className="text-[10.5px] font-semibold tracking-[0.08em] text-[#93c5fd] uppercase">
@@ -622,13 +631,13 @@ export function AdminClusterAndVerifySection({
                     {[0, 1, 2].map((col) => (
                       <td key={col} className="py-3 px-3.5 text-center">
                         <span
-                          className={`inline-flex items-center justify-center size-5 rounded-full text-[11px] font-bold ${
+                          className={`inline-flex items-center justify-center size-6 rounded-full ${
                             ws.healthy
                               ? 'bg-[#dcfce7] text-[#15803d]'
                               : 'bg-[#fef3c7] text-[#b45309]'
                           }`}
                         >
-                          {ws.healthy ? '✓' : '•'}
+                          {ws.healthy ? <CheckCircleIcon size={13} /> : <ClockIcon size={13} />}
                         </span>
                       </td>
                     ))}
@@ -699,8 +708,9 @@ export function AdminClusterAndVerifySection({
               />
             </div>
 
-            <p className="text-[12px] font-medium text-[#059669]">
-              ✓ {availableSlots} live workspace slot(s) currently available.
+            <p className="text-[12px] font-medium text-[#059669] inline-flex items-center gap-1.5">
+              <CheckCircleIcon size={14} className="shrink-0" />
+              <span>{availableSlots} live workspace slot(s) currently available.</span>
             </p>
 
             <div className="pt-1">
@@ -752,7 +762,10 @@ export function AdminClusterAndVerifySection({
 
             <div className="imdx-subbox rounded-[10px] p-3.5 space-y-1.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[13px] font-semibold text-[#102529]">Auto-scaling</span>
+                <span className="text-[13px] font-semibold text-[#102529] inline-flex items-center gap-1.5">
+                  <RefreshCwIcon size={13} className="text-[#059669]" />
+                  <span>Auto-scaling</span>
+                </span>
                 <StatusBadge status="Enabled" />
               </div>
               <p className="text-[12px] text-[#64748b] leading-relaxed">
@@ -770,7 +783,8 @@ export function AdminClusterAndVerifySection({
             value={failedCount}
             subtext={failedCount > 0 ? 'Requires investigation' : 'No build failures'}
             boxBg="bg-[#fee2e2]"
-            dotColor="bg-[#dc2626]"
+            iconColor="text-[#dc2626]"
+            icon={<AlertTriangleIcon size={16} />}
           />
           <AdminKpiCard
             index={1}
@@ -778,7 +792,8 @@ export function AdminClusterAndVerifySection({
             value={waitingCount}
             subtext="Awaiting available capacity"
             boxBg="bg-[#fef3c7]"
-            dotColor="bg-[#d97706]"
+            iconColor="text-[#d97706]"
+            icon={<ClockIcon size={16} />}
           />
           <AdminKpiCard
             index={2}
@@ -786,7 +801,8 @@ export function AdminClusterAndVerifySection({
             value={liveSpaces}
             subtext="Active provisioned spaces"
             boxBg="bg-[#dcfce7]"
-            dotColor="bg-[#16a34a]"
+            iconColor="text-[#16a34a]"
+            icon={<CheckCircleIcon size={16} />}
           />
         </div>
 
@@ -872,8 +888,8 @@ export function AdminClusterAndVerifySection({
         {/* Bottom Recommendation Callout */}
         <div className="imdx-card rounded-[12px] px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3">
-            <span className="mt-0.5 size-7 rounded-full bg-[#e6ecff] text-[#002456] flex items-center justify-center text-[13px] font-bold shrink-0">
-              i
+            <span className="mt-0.5 size-7 rounded-full bg-[#e6ecff] text-[#002456] flex items-center justify-center shrink-0">
+              <InfoCircleIcon size={15} />
             </span>
             <div>
               <p className="text-[13.5px] font-semibold text-[#102529]">Capacity recommendation</p>
@@ -1096,8 +1112,8 @@ export function AdminClusterAndVerifySection({
             )}
 
             <div className="imdx-subbox rounded-[10px] px-4 py-3 flex items-start gap-3">
-              <span className="size-7 rounded-[7px] bg-[#e9faf5] border border-[#bbf7d0] text-[#059669] flex items-center justify-center text-[13px] shrink-0">
-                🛡
+              <span className="size-7 rounded-[7px] bg-[#e9faf5] border border-[#bbf7d0] text-[#059669] flex items-center justify-center shrink-0">
+                <ShieldCheckIcon size={15} />
               </span>
               <div>
                 <p className="text-[13px] font-semibold text-[#102529]">Super Admin access</p>

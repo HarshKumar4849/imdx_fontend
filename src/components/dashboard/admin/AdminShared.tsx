@@ -1,4 +1,6 @@
+import type { ReactNode } from 'react';
 import type { ApplicationReviewStatus } from '../../../types/dashboard';
+import { ActivityPulseIcon } from '../../icons/ImdxIcons';
 
 export type BadgeTone = ApplicationReviewStatus | 'Active' | 'Suspended' | 'Pending' | 'Inactive' | 'Failed' | 'Provisioning' | 'Live';
 
@@ -63,7 +65,9 @@ interface AdminKpiCardProps {
   subtext: string;
   index: number;
   boxBg?: string;
+  iconColor?: string;
   dotColor?: string;
+  icon?: ReactNode;
 }
 
 export function AdminKpiCard({
@@ -72,7 +76,8 @@ export function AdminKpiCard({
   subtext,
   index,
   boxBg = 'bg-[#e9fffa]',
-  dotColor = 'bg-[#10b981]',
+  iconColor = 'text-[#059669]',
+  icon,
 }: AdminKpiCardProps) {
   return (
     <div
@@ -85,9 +90,9 @@ export function AdminKpiCard({
         <p className="mt-1 text-[11.5px] text-[#94a3b8] truncate">{subtext}</p>
       </div>
       <div
-        className={`h-[36px] w-[36px] rounded-[9px] shrink-0 flex items-center justify-center ${boxBg}`}
+        className={`h-[36px] w-[36px] rounded-[9px] shrink-0 flex items-center justify-center ${boxBg} ${iconColor}`}
       >
-        <span className={`size-2.5 rounded-full ${dotColor}`} />
+        {icon ?? <ActivityPulseIcon size={16} />}
       </div>
     </div>
   );
