@@ -105,78 +105,6 @@
   transition: left 200ms ease;
 }
 
-.imdx-orb {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(64px);
-  pointer-events: none;
-  will-change: transform, opacity;
-}
-
-.imdx-orb-a {
-  bottom: -12%;
-  left: -8%;
-  width: min(560px, 48vw);
-  height: min(560px, 48vw);
-  background: radial-gradient(circle, rgba(37, 99, 235, 0.22) 0%, transparent 72%);
-  animation: imdx-orb-drift 15s ease-in-out infinite alternate;
-}
-
-.imdx-orb-b {
-  top: 8%;
-  left: 10%;
-  width: min(440px, 38vw);
-  height: min(440px, 38vw);
-  background: radial-gradient(circle, rgba(69, 192, 178, 0.18) 0%, transparent 72%);
-  animation: imdx-orb-drift 19s ease-in-out -6s infinite alternate;
-}
-
-@keyframes imdx-orb-drift {
-  from {
-    opacity: 0.72;
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(22px, -18px, 0) scale(1.06);
-  }
-}
-
-@keyframes imdx-dash-flow {
-  from {
-    stroke-dashoffset: 160;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes imdx-node-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: scale(0.92);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.16);
-  }
-}
-
-.imdx-dash-flow {
-  animation: imdx-dash-flow 12s linear infinite;
-}
-
-.imdx-dash-flow-reverse {
-  animation: imdx-dash-flow 14s linear infinite reverse;
-}
-
-.imdx-node-pulse {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: imdx-node-pulse 3.8s ease-in-out infinite;
-}
-
 .imdx-internal-canvas > :not(header):not(.fixed):not(.imdx-backdrop-layer) {
   position: relative;
   z-index: 1;
@@ -198,7 +126,10 @@
 }
 
 :root {
-  --ease-reveal: cubic-bezier(0.2, 0.75, 0.2, 1);
+  /* 06. Slow In, Slow Out & 09. Snappy Timing curves */
+  --ease-reveal: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .imdx-card-interactive {
@@ -214,9 +145,9 @@
   border: 1px solid rgba(0, 143, 195, 0.24);
   box-shadow: 0 12px 32px -18px rgba(0, 74, 153, 0.14),
     inset 0 1px 0 rgba(255, 255, 255, 0.75);
-  transition: transform 240ms var(--ease-reveal),
-    border-color 240ms ease,
-    box-shadow 240ms ease;
+  transition: transform 220ms var(--ease-reveal),
+    border-color 200ms var(--ease-smooth),
+    box-shadow 220ms var(--ease-smooth);
 }
 
 .imdx-card-interactive::before {
@@ -231,9 +162,10 @@
   );
   opacity: 0;
   pointer-events: none;
-  transition: opacity 280ms ease;
+  transition: opacity 240ms var(--ease-smooth);
 }
 
+/* 03. Staging the Focus on hover + 08. Secondary Action icon lift */
 .imdx-card-interactive:hover::before {
   opacity: 1;
 }
@@ -243,6 +175,18 @@
   border-color: rgba(46, 132, 203, 0.48);
   box-shadow: 0 22px 44px -18px rgba(0, 143, 195, 0.24),
     inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.imdx-card-interactive:active {
+  transform: translateY(-1px) scaleX(1.01) scaleY(0.985);
+}
+
+.imdx-kpi-icon {
+  transition: transform 260ms var(--ease-spring);
+}
+
+.imdx-card-interactive:hover .imdx-kpi-icon {
+  transform: translate(1px, -2px) scale(1.09) rotate(-4deg);
 }
 
 .imdx-subbox {
@@ -283,58 +227,88 @@
   color: transparent;
 }
 
+/* 01. Squash & Stretch + 02. Anticipation + 09. Snappy Timing on Primary Actions */
 .imdx-btn-primary {
   background: linear-gradient(100deg, #2fb89d 0%, #00a5c3 58%, #2e84cb 100%);
   color: #ffffff;
   box-shadow: 0 12px 24px -10px rgba(0, 143, 167, 0.55);
-  transition: transform 200ms ease, box-shadow 200ms ease, filter 200ms ease;
+  transition: transform 180ms var(--ease-spring), box-shadow 180ms var(--ease-smooth), filter 180ms ease;
 }
 
 .imdx-btn-primary:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) scaleX(1.015) scaleY(1.015);
   box-shadow: 0 16px 30px -10px rgba(0, 143, 167, 0.65);
   filter: brightness(1.03);
 }
 
 .imdx-btn-primary:active {
-  transform: translateY(0);
+  transform: translateY(1px) scaleX(1.035) scaleY(0.95);
+  box-shadow: 0 6px 14px -8px rgba(0, 143, 167, 0.45);
 }
 
-/* Landing-inspired motion primitives for internal screens */
+.imdx-nav-item {
+  transition: background-color 160ms var(--ease-smooth),
+    color 160ms var(--ease-smooth),
+    border-color 160ms var(--ease-smooth),
+    transform 160ms var(--ease-spring);
+}
+
+.imdx-nav-item:active {
+  transform: scaleX(0.985) scaleY(0.97);
+}
+
+.imdx-nav-item .imdx-nav-icon {
+  transition: transform 200ms var(--ease-spring);
+}
+
+.imdx-nav-item:hover .imdx-nav-icon {
+  transform: translateX(2px) scale(1.08);
+}
+
+/* 10-Principle UI Motion System */
+/* 02. Anticipation + 04. Pose to Pose stage reveal */
 @keyframes imdx-stage-reveal {
-  from {
+  0% {
     opacity: 0;
-    filter: blur(7px);
-    transform: translateY(16px);
+    filter: blur(5px);
+    transform: translateY(14px) scale(0.985);
   }
-  to {
+  25% {
+    opacity: 0.72;
+    transform: translateY(15px) scale(0.982);
+  }
+  100% {
     opacity: 1;
     filter: none;
     transform: none;
   }
 }
 
+/* 07. Moving in Arcs + 05. Follow Through card entrance */
 @keyframes imdx-card-rise {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(20px) scale(0.975);
+    transform: translate3d(-6px, 18px, 0) scale(0.97);
   }
-  to {
+  70% {
     opacity: 1;
-    transform: none;
+    transform: translate3d(1px, -2px, 0) scale(1.006);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
+/* 04. Pose to Pose + 06. Slow In, Slow Out table row reveal */
 @keyframes imdx-row-reveal {
   from {
     opacity: 0;
-    filter: blur(4px);
-    transform: translateY(10px);
+    transform: translate3d(-4px, 8px, 0);
   }
   to {
     opacity: 1;
-    filter: none;
-    transform: none;
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -347,11 +321,15 @@
   }
 }
 
+/* 05. Follow Through bar settle with gentle overshoot */
 @keyframes imdx-bar-fill {
-  from {
+  0% {
     transform: scaleX(0);
   }
-  to {
+  78% {
+    transform: scaleX(1.03);
+  }
+  100% {
     transform: scaleX(1);
   }
 }
@@ -365,17 +343,23 @@
   }
 }
 
+/* 01. Squash & Stretch + 05. Follow Through chart dots */
 @keyframes imdx-dot-pop {
-  from {
+  0% {
     opacity: 0;
-    transform: scale(0.4);
+    transform: scale(0.35);
   }
-  to {
+  65% {
+    opacity: 1;
+    transform: scale(1.22);
+  }
+  100% {
     opacity: 1;
     transform: scale(1);
   }
 }
 
+/* 03. Staging the Focus modal backdrop & spring panel */
 @keyframes imdx-modal-fade {
   from {
     opacity: 0;
@@ -386,75 +370,125 @@
 }
 
 @keyframes imdx-modal-spring {
-  from {
+  0% {
     opacity: 0;
-    transform: translateY(14px) scale(0.975);
+    transform: translateY(16px) scaleX(0.96) scaleY(1.02);
   }
-  to {
+  70% {
+    opacity: 1;
+    transform: translateY(-2px) scaleX(1.005) scaleY(0.995);
+  }
+  100% {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
 
-@keyframes imdx-plus-float {
-  from {
-    opacity: 0.35;
-    transform: translate3d(0, 0, 0);
+/* 10. Exaggerated Feedback confirmations & error shake */
+@keyframes imdx-feedback-pop {
+  0% {
+    opacity: 0.7;
+    transform: scaleX(0.94) scaleY(1.06);
   }
-  to {
-    opacity: 0.78;
-    transform: translate3d(var(--float-x, 3px), var(--float-y, -3px), 0);
+  55% {
+    opacity: 1;
+    transform: scaleX(1.03) scaleY(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes imdx-error-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-5px);
+  }
+  45% {
+    transform: translateX(4px);
+  }
+  70% {
+    transform: translateX(-2px);
+  }
+}
+
+/* 08. Secondary Action subtle live operational indicator pulse */
+@keyframes imdx-live-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.35);
+  }
+  60% {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
   }
 }
 
 .imdx-stage-enter {
-  animation: imdx-stage-reveal 480ms var(--ease-reveal) both;
+  animation: imdx-stage-reveal 360ms var(--ease-reveal) both;
 }
 
 .imdx-stagger-card {
-  animation: imdx-card-rise 520ms var(--ease-reveal) both;
-  animation-delay: calc(var(--stagger-i, 0) * 65ms);
+  animation: imdx-card-rise 400ms var(--ease-reveal) both;
+  animation-delay: calc(min(var(--stagger-i, 0), 8) * 45ms);
 }
 
 .imdx-stagger-row {
-  animation: imdx-row-reveal 420ms var(--ease-reveal) both;
-  animation-delay: calc(var(--stagger-i, 0) * 45ms);
+  animation: imdx-row-reveal 300ms var(--ease-reveal) both;
+  animation-delay: calc(min(var(--stagger-i, 0), 10) * 32ms);
 }
 
 .imdx-rule-animate {
   transform-origin: left center;
-  animation: imdx-rule-draw 620ms var(--ease-reveal) both;
+  animation: imdx-rule-draw 480ms var(--ease-reveal) both;
 }
 
 .imdx-bar-animate {
   transform-origin: left center;
-  animation: imdx-bar-fill 720ms var(--ease-reveal) 140ms both;
+  animation: imdx-bar-fill 620ms var(--ease-reveal) 110ms both;
 }
 
 .imdx-chart-line {
   stroke-dasharray: 640;
   stroke-dashoffset: 640;
-  animation: imdx-chart-draw 950ms var(--ease-reveal) 120ms forwards;
+  animation: imdx-chart-draw 780ms var(--ease-reveal) 100ms forwards;
 }
 
 .imdx-chart-dot {
   transform-box: fill-box;
   transform-origin: center;
-  animation: imdx-dot-pop 380ms var(--ease-reveal) both;
-  animation-delay: calc(220ms + var(--stagger-i, 0) * 75ms);
+  animation: imdx-dot-pop 340ms var(--ease-spring) both;
+  animation-delay: calc(180ms + var(--stagger-i, 0) * 60ms);
 }
 
 .imdx-modal-backdrop {
-  animation: imdx-modal-fade 220ms ease both;
+  animation: imdx-modal-fade 180ms var(--ease-smooth) both;
 }
 
 .imdx-modal-panel {
-  animation: imdx-modal-spring 380ms var(--ease-reveal) both;
+  animation: imdx-modal-spring 300ms var(--ease-reveal) both;
 }
 
-.imdx-corner-plus {
-  animation: imdx-plus-float 3.4s ease-in-out infinite alternate;
-  animation-delay: calc(var(--stagger-i, 0) * 180ms);
+.imdx-feedback-pop {
+  animation: imdx-feedback-pop 320ms var(--ease-spring) both;
+}
+
+.imdx-error-shake {
+  animation: imdx-error-shake 300ms var(--ease-smooth) both;
+}
+
+.imdx-live-dot {
+  animation: imdx-live-pulse 2.6s ease-in-out infinite;
+}
+
+.imdx-tab-underline {
+  transform-origin: left center;
+  animation: imdx-rule-draw 220ms var(--ease-spring) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -467,11 +501,10 @@
   .imdx-chart-dot,
   .imdx-modal-backdrop,
   .imdx-modal-panel,
-  .imdx-corner-plus,
-  .imdx-orb,
-  .imdx-dash-flow,
-  .imdx-dash-flow-reverse,
-  .imdx-node-pulse {
+  .imdx-feedback-pop,
+  .imdx-error-shake,
+  .imdx-live-dot,
+  .imdx-tab-underline {
     animation: none !important;
     stroke-dashoffset: 0 !important;
   }

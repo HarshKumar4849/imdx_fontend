@@ -513,13 +513,13 @@ export function DashboardLayout({
                       type="button"
                       onClick={() => onWorkspaceNavChange(item.key)}
                       title={item.label}
-                      className={`h-[38px] w-full flex items-center gap-3 px-3 rounded-[8px] transition-all cursor-pointer border-l-[3px] ${
+                      className={`imdx-nav-item h-[38px] w-full flex items-center gap-3 px-3 rounded-[8px] cursor-pointer border-l-[3px] ${
                         isActive
                           ? 'bg-[#e9faf5] border-[#10b981] text-[#059669] font-semibold'
                           : 'border-transparent text-[#334155] hover:bg-[#f1f5f9] hover:text-[#102529]'
                       }`}
                     >
-                      <span className="w-[18px] flex items-center justify-center shrink-0">
+                      <span className="imdx-nav-icon w-[18px] flex items-center justify-center shrink-0">
                         <SidebarIcon name={item.key} active={isActive} />
                       </span>
                       {!isSidebarCollapsed && (
@@ -542,14 +542,14 @@ export function DashboardLayout({
                       type="button"
                       onClick={() => onAdminNavChange(item.key)}
                       title={item.label}
-                      className={`h-[38px] w-full flex items-center justify-between gap-2 px-3 rounded-[8px] transition-all cursor-pointer border-l-[3px] ${
+                      className={`imdx-nav-item h-[38px] w-full flex items-center justify-between gap-2 px-3 rounded-[8px] cursor-pointer border-l-[3px] ${
                         isActive
                           ? 'bg-[#e9faf5] border-[#10b981] text-[#059669] font-semibold'
                           : 'border-transparent text-[#334155] hover:bg-[#f1f5f9] hover:text-[#102529]'
                       }`}
                     >
                       <span className="flex items-center gap-3 min-w-0">
-                        <span className="w-[18px] flex items-center justify-center shrink-0">
+                        <span className="imdx-nav-icon w-[18px] flex items-center justify-center shrink-0">
                           <SidebarIcon name={item.key} active={isActive} />
                         </span>
                         {!isSidebarCollapsed && (
@@ -576,20 +576,20 @@ export function DashboardLayout({
                   <button
                     type="button"
                     onClick={() => onAdminNavChange('settings')}
-                    className={`h-[36px] w-full flex items-center gap-3 px-3 rounded-[8px] transition-all cursor-pointer border-l-[3px] ${
+                    className={`imdx-nav-item h-[36px] w-full flex items-center gap-3 px-3 rounded-[8px] cursor-pointer border-l-[3px] ${
                       activeAdminNav === 'settings'
                         ? 'bg-[#e9faf5] border-[#10b981] text-[#059669] font-semibold'
                         : 'border-transparent text-[#334155] hover:bg-[#f1f5f9] hover:text-[#102529]'
                     }`}
                   >
-                    <span className="w-[18px] flex items-center justify-center shrink-0">
+                    <span className="imdx-nav-icon w-[18px] flex items-center justify-center shrink-0">
                       <SidebarIcon name="settings" active={activeAdminNav === 'settings'} />
                     </span>
                     <span className="text-[13.5px] whitespace-nowrap">Settings</span>
                   </button>
                   <div className="imdx-subbox rounded-[10px] px-3 py-2.5">
                     <div className="flex items-center gap-1.5 text-[12px] font-semibold text-[#102529]">
-                      <span className="size-2 rounded-full bg-[#10b981]" />
+                      <span className="imdx-live-dot size-2 rounded-full bg-[#10b981]" />
                       <span>Platform operational</span>
                     </div>
                     <p className="mt-0.5 pl-3.5 text-[11px] text-[#64748b]">Production · IMDX</p>
@@ -604,7 +604,7 @@ export function DashboardLayout({
                         <span>IMDX Network</span>
                       </span>
                       <span className="flex items-center gap-1 text-[11px] font-medium text-[#059669]">
-                        <span className="size-1.5 rounded-full bg-[#10b981]" />
+                        <span className="imdx-live-dot size-1.5 rounded-full bg-[#10b981]" />
                         Connected
                       </span>
                     </div>

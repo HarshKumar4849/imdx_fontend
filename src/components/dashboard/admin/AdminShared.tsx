@@ -90,7 +90,7 @@ export function AdminKpiCard({
         <p className="mt-1 text-[11.5px] text-[#94a3b8] truncate">{subtext}</p>
       </div>
       <div
-        className={`h-[36px] w-[36px] rounded-[9px] shrink-0 flex items-center justify-center ${boxBg} ${iconColor}`}
+        className={`imdx-kpi-icon h-[36px] w-[36px] rounded-[9px] shrink-0 flex items-center justify-center ${boxBg} ${iconColor}`}
       >
         {icon ?? <ActivityPulseIcon size={16} />}
       </div>

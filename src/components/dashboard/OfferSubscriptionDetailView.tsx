@@ -204,7 +204,7 @@ export function OfferSubscriptionDetailView({
               >
                 {tab.label}
                 {isActive && (
-                  <span className="absolute left-0 right-0 -bottom-[1px] h-[2.5px] rounded-full bg-[#10b981]" />
+                  <span className="imdx-tab-underline absolute left-0 right-0 -bottom-[1px] h-[2.5px] rounded-full bg-[#10b981]" />
                 )}
               </button>
             );
@@ -338,7 +338,9 @@ export function OfferSubscriptionDetailView({
               </div>
 
               {consentNotice && (
-                <p className="text-[11.5px] font-medium text-[#059669]">{consentNotice}</p>
+                <p className="imdx-feedback-pop text-[11.5px] font-medium text-[#059669]">
+                  {consentNotice}
+                </p>
               )}
 
               <button
@@ -592,16 +594,18 @@ export function OfferSubscriptionDetailView({
           </span>
         </label>
 
-        {subscribeError && <p className="text-[12px] text-[#dc2626]">{subscribeError}</p>}
+        {subscribeError && (
+          <p className="imdx-error-shake text-[12px] text-[#dc2626]">{subscribeError}</p>
+        )}
 
         <div className="flex justify-end">
           <button
             type="button"
             onClick={handleSubscribe}
-            className={`h-[34px] px-7 rounded-full text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+            className={`h-[34px] px-7 rounded-full text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer ${
               isSubscribed
-                ? 'bg-[#dcfce7] text-[#15803d] border border-[#16a34a]/30'
-                : 'bg-[#22b59b] hover:bg-[#1ca18a] text-white'
+                ? 'imdx-feedback-pop bg-[#dcfce7] text-[#15803d] border border-[#16a34a]/30'
+                : 'imdx-btn-primary'
             }`}
           >
             {isSubscribed ? (

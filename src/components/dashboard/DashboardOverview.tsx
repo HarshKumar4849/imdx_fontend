@@ -98,7 +98,7 @@ export function DashboardOverview({
                 {String(totalCombined).padStart(2, '0')}
               </p>
             </div>
-            <span className="flex items-center justify-center size-9 rounded-[9px] bg-[#e9faf5] text-[#059669] shrink-0">
+            <span className="imdx-kpi-icon flex items-center justify-center size-9 rounded-[9px] bg-[#e9faf5] text-[#059669] shrink-0">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <ellipse cx="12" cy="5" rx="8" ry="3" />
                 <path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
@@ -124,7 +124,7 @@ export function DashboardOverview({
                 {String(publishedCount).padStart(2, '0')}
               </p>
             </div>
-            <span className="flex items-center justify-center size-9 rounded-[9px] bg-[#e9faf5] text-[#059669] shrink-0">
+            <span className="imdx-kpi-icon flex items-center justify-center size-9 rounded-[9px] bg-[#e9faf5] text-[#059669] shrink-0">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <circle cx="12" cy="12" r="9" />
                 <polyline points="9 12 11.5 14.5 15.5 9.5" />
@@ -147,7 +147,7 @@ export function DashboardOverview({
                 {String(subscriptionsCount).padStart(2, '0')}
               </p>
             </div>
-            <span className="flex items-center justify-center size-9 rounded-[9px] bg-[#e9faf5] text-[#059669] shrink-0">
+            <span className="imdx-kpi-icon flex items-center justify-center size-9 rounded-[9px] bg-[#e9faf5] text-[#059669] shrink-0">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="M5 2h14M5 22h14M6 2v4c0 3 6 4 6 6s-6 3-6 6v4M18 2v4c0 3-6 4-6 6s6 3 6 6v4" />
               </svg>
@@ -169,7 +169,7 @@ export function DashboardOverview({
                 {String(pendingApprovalCount).padStart(2, '0')}
               </p>
             </div>
-            <span className="flex items-center justify-center size-9 rounded-[9px] bg-[#e9faf5] text-[#059669] shrink-0">
+            <span className="imdx-kpi-icon flex items-center justify-center size-9 rounded-[9px] bg-[#e9faf5] text-[#059669] shrink-0">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
                 <path d="M3 3v5h5" />

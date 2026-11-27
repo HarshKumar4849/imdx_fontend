@@ -159,7 +159,7 @@ export function SubscriptionsPage({
   return (
     <div className="space-y-4">
       {pullNotice && (
-        <div className="rounded-[10px] border border-[#10b981]/30 bg-[#e9faf5] px-4 py-2.5 flex items-center justify-between gap-3 text-[12.5px] text-[#065f46]">
+        <div className="imdx-feedback-pop rounded-[10px] border border-[#10b981]/30 bg-[#e9faf5] px-4 py-2.5 flex items-center justify-between gap-3 text-[12.5px] text-[#065f46]">
           <span>{pullNotice}</span>
           <button
             type="button"
@@ -380,7 +380,7 @@ export function SubscriptionsPage({
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-[12px] text-[#64748b]">{kpi.label}</p>
-                  <span className="flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] shrink-0">
+                  <span className="imdx-kpi-icon flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] shrink-0">
                     {kpi.icon}
                   </span>
                 </div>
@@ -764,7 +764,7 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
           >
             <div className="flex items-start justify-between gap-2">
               <p className="text-[12px] text-[#64748b]">{kpi.label}</p>
-              <span className="flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] shrink-0">
+              <span className="imdx-kpi-icon flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] shrink-0">
                 {kpi.icon}
               </span>
             </div>
@@ -1312,7 +1312,7 @@ export function BillingPage({
                   {kpi.value}
                 </p>
               </div>
-              <span className="flex items-center justify-center size-8 rounded-[8px] bg-[#e9faf5] text-[#059669] shrink-0">
+              <span className="imdx-kpi-icon flex items-center justify-center size-8 rounded-[8px] bg-[#e9faf5] text-[#059669] shrink-0">
                 {kpi.icon}
               </span>
             </div>
