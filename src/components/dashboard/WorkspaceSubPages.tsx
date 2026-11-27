@@ -13,16 +13,22 @@ import { ModalPortal } from '../ModalPortal';
 import type {
   BillingTransaction,
   CatalogOffer,
+  ConsentRequestRecord,
+  PlanOptionId,
   SubscriptionRecord,
   TransferItem,
   WorkspacePreferences,
 } from '../../types/dashboard';
 import type { OnboardingState } from '../../types/onboarding';
+import { OfferSubscriptionDetailView } from './OfferSubscriptionDetailView';
 
 interface SubscriptionsPageProps {
   subscriptions: SubscriptionRecord[];
   offers?: CatalogOffer[];
+  consentRequests?: ConsentRequestRecord[];
   searchQuery: string;
+  onRequestConsent?: (record: ConsentRequestRecord) => void;
+  onSubscribeOffer?: (offer: CatalogOffer, planId: PlanOptionId, purpose: string) => void;
   onApproveSubscription?: (id: string) => void;
   onUnsubscribe: (id: string) => void;
   onPullData: (offerId: string) => void;
@@ -39,7 +45,10 @@ const PLAN_LABELS: Record<SubscriptionRecord['planId'], string> = {
 export function SubscriptionsPage({
   subscriptions,
   offers,
+  consentRequests = [],
   searchQuery,
+  onRequestConsent,
+  onSubscribeOffer,
   onApproveSubscription,
   onUnsubscribe,
   onPullData,
@@ -115,6 +124,14 @@ export function SubscriptionsPage({
   const selectedDetail = detailOfferId
     ? enrichedAll.find((x) => x.offer.id === detailOfferId || x.sub.offerId === detailOfferId) ?? null
     : null;
+  const fallbackOffer = detailOfferId
+    ? catalogSource.find((o) => o.id === detailOfferId) ?? catalogSource[0]
+    : null;
+  const detailOffer = selectedDetail?.offer ?? fallbackOffer;
+  const detailSub = selectedDetail?.sub;
+  const detailConsent = detailOffer
+    ? consentRequests.find((c) => c.offerId === detailOffer.id)
+    : undefined;
 
   const handleCopyEndpoint = (offerId: string, url: string) => {
     void navigator.clipboard?.writeText(url).catch(() => undefined);
@@ -124,56 +141,6 @@ export function SubscriptionsPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-[11.5px] font-medium text-[#64748b]">
-            IMDX &gt; <span className="text-[#334155]">SUBSCRIPTIONS</span>
-          </p>
-          <h1 className="mt-0.5 text-[22px] sm:text-[24px] font-semibold text-[#002456] leading-tight">
-            Subscriptions
-          </h1>
-          <p className="mt-0.5 text-[13px] text-[#64748b]">
-            Manage your organization&apos;s data access agreements.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={onGoToCatalog}
-          className="h-[34px] px-4 rounded-full imdx-btn-primary text-[12.5px] font-semibold cursor-pointer"
-        >
-          + Explore Catalog
-        </button>
-      </div>
-
-      {/* 5 KPI Cards matching Workspace Subscriptions screenshot */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
-        {[
-          { label: 'Total Subscriptions', value: enrichedAll.length, sub: 'Across all agreements' },
-          { label: 'Active', value: activeCount, sub: 'Authorized data access' },
-          { label: 'Pending Activation', value: pendingCount, sub: 'Awaiting approval' },
-          { label: 'Expiring Soon', value: 0, sub: 'Within next 30 days' },
-          { label: 'Paused / Expired', value: pausedCount, sub: 'Across all agreements' },
-        ].map((kpi, idx) => (
-          <div
-            key={kpi.label}
-            style={{ ['--stagger-i' as string]: idx }}
-            className="imdx-stagger-card imdx-card-interactive rounded-[12px] p-4 flex flex-col justify-between gap-2"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-[12px] text-[#64748b]">{kpi.label}</p>
-              <span className="flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] text-[12px] font-bold shrink-0">
-                ▤
-              </span>
-            </div>
-            <p className="text-[24px] font-bold text-[#102529] leading-tight">
-              {String(kpi.value).padStart(2, '0')}
-            </p>
-            <p className="text-[11px] text-[#64748b]">{kpi.sub}</p>
-          </div>
-        ))}
-      </div>
-
       {pullNotice && (
         <div className="rounded-[10px] border border-[#10b981]/30 bg-[#e9faf5] px-4 py-2.5 flex items-center justify-between gap-3 text-[12.5px] text-[#065f46]">
           <span>{pullNotice}</span>
@@ -187,311 +154,373 @@ export function SubscriptionsPage({
         </div>
       )}
 
-      {/* Segmented Tabs */}
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab('mine')}
-          className={`h-[34px] px-4 rounded-[8px] text-[12.5px] font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer ${
-            activeTab === 'mine'
-              ? 'bg-[#e9faf5] border border-[#10b981]/40 text-[#059669]'
-              : 'bg-white border border-[#e2e8f0] text-[#475569]'
-          }`}
-        >
-          <span>My Subscriptions</span>
-          <span className="rounded-full bg-white/90 px-2 py-0.5 text-[11px] text-[#102529]">
-            {myItems.length}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('received')}
-          className={`h-[34px] px-4 rounded-[8px] text-[12.5px] font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer ${
-            activeTab === 'received'
-              ? 'bg-[#e9faf5] border border-[#10b981]/40 text-[#059669]'
-              : 'bg-white border border-[#e2e8f0] text-[#475569]'
-          }`}
-        >
-          <span>Received Subscriptions</span>
-          <span className="rounded-full bg-[#f1f5f9] px-2 py-0.5 text-[11px] text-[#102529]">
-            {receivedItems.length}
-          </span>
-        </button>
-      </div>
-
-      {/* Filter Bar + Table Card */}
-      <div className="imdx-card rounded-[12px] overflow-hidden">
-        <div className="p-4 border-b border-[#e2e8f0] flex flex-wrap items-center gap-2.5">
-          <input
-            type="search"
-            value={subSearch}
-            onChange={(e) => setSubSearch(e.target.value)}
-            placeholder="Search subscriptions..."
-            className="flex-1 min-w-[200px] h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px] focus:outline-none focus:border-[#008fa7]"
-          />
-          <select
-            aria-label="Filter subscriptions by status"
-            value={statusFilter}
-            onChange={(e) =>
-              setStatusFilter(e.target.value as 'All' | 'Active' | 'Pending' | 'Paused')
-            }
-            className="h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px] text-[#102529]"
-          >
-            <option value="All">All statuses</option>
-            <option value="Active">Active</option>
-            <option value="Pending">Pending Activation</option>
-            <option value="Paused">Paused</option>
-          </select>
-          <select
-            aria-label="Filter subscriptions by type"
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as 'All' | SubscriptionRecord['planId'])}
-            className="h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px] text-[#102529]"
-          >
-            <option value="All">All subscription types</option>
-            <option value="subscription">Subscription</option>
-            <option value="pay-per-use">Pay Per Use</option>
-            <option value="hybrid">Hybrid</option>
-            <option value="one-time">One Time</option>
-          </select>
-        </div>
-
-        {filtered.length === 0 ? (
-          <div className="py-10 text-center px-4">
-            <p className="text-[14.5px] text-[#64748b]">
-              {subscriptions.length === 0
-                ? 'No active subscriptions yet.'
-                : 'No subscriptions match this filter.'}
-            </p>
-            <button
-              type="button"
-              onClick={onGoToCatalog}
-              className="mt-3 h-[34px] px-5 rounded-full imdx-btn-primary text-[12.5px] font-semibold cursor-pointer"
-            >
-              Browse Catalog &rarr;
-            </button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[820px]">
-              <thead>
-                <tr className="bg-gradient-to-r from-[#e3f9f3]/80 via-[#e8f6fe]/80 to-[#e6f0ff]/80 border-b border-[#b4d7de]/70 text-[10.5px] tracking-wider uppercase text-[#475569]">
-                  <th className="py-2.5 px-4 font-semibold">Subscription ID</th>
-                  <th className="py-2.5 px-3 font-semibold">Dataset</th>
-                  <th className="py-2.5 px-3 font-semibold">Provider Organization</th>
-                  <th className="py-2.5 px-3 font-semibold">Subscription Type</th>
-                  <th className="py-2.5 px-3 font-semibold">Start Date</th>
-                  <th className="py-2.5 px-3 font-semibold">Usage</th>
-                  <th className="py-2.5 px-3 font-semibold">Status</th>
-                  <th className="py-2.5 px-4 text-right font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#f1f5f9] text-[12.5px] text-[#475569]">
-                {filtered.map(({ sub, offer, shortId, derivedStatus, usagePct }, idx) => (
-                  <tr
-                    key={offer.id}
-                    style={{ ['--stagger-i' as string]: idx }}
-                    className="imdx-stagger-row hover:bg-[#f8fafc]"
-                  >
-                    <td className="py-3 px-4 font-mono text-[11.5px] text-[#64748b] whitespace-nowrap">
-                      {shortId}
-                    </td>
-                    <td className="py-3 px-3 font-semibold text-[#102529]">{offer.title}</td>
-                    <td className="py-3 px-3">{offer.publisher}</td>
-                    <td className="py-3 px-3 whitespace-nowrap">{PLAN_LABELS[sub.planId]}</td>
-                    <td className="py-3 px-3 whitespace-nowrap">{sub.subscribedAt}</td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-[56px] h-1.5 rounded-full bg-[#e2e8f0] overflow-hidden">
-                          <div
-                            className="h-full bg-[#16b89a]"
-                            style={{ width: `${usagePct}%` }}
-                          />
-                        </div>
-                        <span className="text-[11px] font-medium">{usagePct}%</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
-                          derivedStatus === 'Active'
-                            ? 'bg-[#dcfce7] text-[#15803d]'
-                            : derivedStatus === 'Pending'
-                              ? 'bg-[#fef3c7] text-[#b45309]'
-                              : 'bg-[#f1f5f9] text-[#475569]'
-                        }`}
-                      >
-                        <span
-                          className={`size-1.5 rounded-full ${
-                            derivedStatus === 'Active'
-                              ? 'bg-[#16a34a]'
-                              : derivedStatus === 'Pending'
-                                ? 'bg-[#d97706]'
-                                : 'bg-[#64748b]'
-                          }`}
-                        />
-                        {derivedStatus}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right whitespace-nowrap space-x-3">
-                      {sub.backendStatus === 'REQUESTED' && onApproveSubscription && (
-                        <button
-                          type="button"
-                          onClick={() => onApproveSubscription(sub.offerId)}
-                          className="text-[12px] font-semibold text-[#059669] hover:underline cursor-pointer"
-                        >
-                          Approve
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setDetailOfferId(offer.id)}
-                        className="text-[12px] font-semibold text-[#059669] hover:underline cursor-pointer"
-                      >
-                        View details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Subscription Details Modal keeping all live contract & transfer actions */}
-      {selectedDetail && (
-        <ModalPortal>
-          <div
-            className="imdx-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-[#05080d]/55 backdrop-blur-xs p-4"
-            role="dialog"
-            aria-modal="true"
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) setDetailOfferId(null);
-            }}
-          >
-            <div className="imdx-modal-panel imdx-modal-surface w-full max-w-[520px] rounded-[14px] p-5 space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="imdx-kicker">
-                    {selectedDetail.shortId} · {selectedDetail.offer.protocol}
+      {detailOfferId && detailOffer ? (
+        <OfferSubscriptionDetailView
+          key={detailOffer.id}
+          breadcrumbPrefix="IMDX > Subscriptions"
+          heading="Subscription Details"
+          subtitle="Manage data use consent, contract terms, plan selection, and EDC endpoint access."
+          backLabel="← Back to Subscriptions"
+          offer={detailOffer}
+          allOffers={catalogSource}
+          selectAriaLabel="Select subscription dataset"
+          subscription={detailSub}
+          consent={detailConsent}
+          onBack={() => setDetailOfferId(null)}
+          onSelectOffer={(id) => setDetailOfferId(id)}
+          onRequestConsent={onRequestConsent}
+          onSubscribeOffer={onSubscribeOffer}
+          onUnsubscribeOffer={(id) => {
+            onUnsubscribe(id);
+            setDetailOfferId(null);
+          }}
+          contractActionsSlot={
+            detailSub ? (
+              <div className="imdx-card rounded-[12px] p-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#64748b]">
+                    Active Agreement · {selectedDetail?.shortId} · EDC Endpoint
                   </p>
-                  <h2 className="mt-0.5 text-[18px] font-semibold text-[#102529]">
-                    {selectedDetail.offer.title}
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setDetailOfferId(null)}
-                  className="text-[#64748b] hover:text-[#102529] text-[20px] leading-none px-1 cursor-pointer"
-                >
-                  &times;
-                </button>
-              </div>
-
-              <div className="imdx-subbox rounded-[10px] p-3.5 text-[12.5px] space-y-1.5">
-                <div className="flex justify-between gap-2">
-                  <span className="text-[#64748b]">Provider:</span>
-                  <span className="font-semibold text-[#102529] text-right">
-                    {selectedDetail.offer.publisher}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="text-[#64748b]">Plan / Purpose:</span>
-                  <span className="font-semibold text-[#102529] text-right">
-                    {PLAN_LABELS[selectedDetail.sub.planId]} · {selectedDetail.sub.purpose}
-                  </span>
-                </div>
-                <div className="pt-1">
-                  <p className="text-[#64748b] mb-0.5">EDC Endpoint URL</p>
-                  <p className="font-mono text-[11px] text-[#002456] break-all">
-                    {selectedDetail.offer.endpointUrl}
+                  <p className="mt-0.5 font-mono text-[11.5px] text-[#002456] truncate">
+                    {detailOffer.endpointUrl}
                   </p>
                 </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSigningSubId(selectedDetail.sub.offerId);
-                    setDetailOfferId(null);
-                    setContractNotice('');
-                    if (isAgentConfigured() && loadUserSession()?.token) {
-                      void cygnusApi
-                        .sendContractOtp(selectedDetail.sub.offerId)
-                        .then((res) => setContractNotice(`OTP issued (${res.mode}). Enter code below.`))
-                        .catch((e) =>
-                          setContractNotice(e instanceof Error ? e.message : 'Unable to send OTP'),
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {detailSub.backendStatus === 'REQUESTED' && onApproveSubscription && (
+                    <button
+                      type="button"
+                      onClick={() => onApproveSubscription(detailSub.offerId)}
+                      className="h-[32px] px-3.5 rounded-full imdx-btn-primary text-[12px] font-semibold cursor-pointer"
+                    >
+                      Approve
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSigningSubId(detailSub.offerId);
+                      setContractNotice('');
+                      if (isAgentConfigured() && loadUserSession()?.token) {
+                        void cygnusApi
+                          .sendContractOtp(detailSub.offerId)
+                          .then((res) =>
+                            setContractNotice(`OTP issued (${res.mode}). Enter code below.`),
+                          )
+                          .catch((e) =>
+                            setContractNotice(
+                              e instanceof Error ? e.message : 'Unable to send OTP',
+                            ),
+                          );
+                      } else {
+                        setContractNotice(
+                          'Preview mode: enter any 6-digit OTP to simulate e-sign.',
                         );
-                    } else {
-                      setContractNotice('Preview mode: enter any 6-digit OTP to simulate e-sign.');
-                    }
-                  }}
-                  className="h-[34px] px-3.5 rounded-full border border-[#008fa7]/35 bg-[#e5faf6] text-[12px] font-semibold text-[#002456] cursor-pointer"
-                >
-                  Sign Contract
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!isAgentConfigured() || !loadUserSession()?.token) {
+                      }
+                    }}
+                    className="h-[32px] px-3.5 rounded-full border border-[#008fa7]/35 bg-[#e5faf6] text-[12px] font-semibold text-[#002456] cursor-pointer"
+                  >
+                    Sign Contract
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isAgentConfigured() || !loadUserSession()?.token) {
+                        setPullNotice(
+                          `Contract PDF ready for "${detailOffer.title}" (connect Cygnus Agent to stream PDF).`,
+                        );
+                        return;
+                      }
+                      void cygnusApi
+                        .getContractDocumentBlob(detailSub.offerId)
+                        .then((blob) => {
+                          const url = URL.createObjectURL(blob);
+                          window.open(url, '_blank');
+                        })
+                        .catch((e) =>
+                          setPullNotice(
+                            e instanceof Error ? e.message : 'Unable to fetch contract PDF',
+                          ),
+                        );
+                    }}
+                    className="h-[32px] px-3.5 rounded-full border border-[#cbd5e1] bg-white text-[12px] font-semibold text-[#102529] cursor-pointer"
+                  >
+                    Contract PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyEndpoint(detailOffer.id, detailOffer.endpointUrl)}
+                    className="h-[32px] px-3.5 rounded-full border border-[#cbd5e1] bg-white text-[12px] font-semibold text-[#102529] cursor-pointer"
+                  >
+                    {copiedId === detailOffer.id ? 'Copied ✓' : 'Copy URL'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onPullData(detailOffer.id);
                       setPullNotice(
-                        `Contract PDF ready for "${selectedDetail.offer.title}" (connect Cygnus Agent to stream PDF).`,
+                        `Triggered EDC inbound transfer for "${detailOffer.title}". View live record in Transfers.`,
                       );
+                    }}
+                    className="h-[32px] px-4 rounded-full bg-[#002456] text-white text-[12px] font-semibold cursor-pointer"
+                  >
+                    Pull Data
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUnsubscribe(detailOffer.id);
                       setDetailOfferId(null);
-                      return;
-                    }
-                    void cygnusApi
-                      .getContractDocumentBlob(selectedDetail.sub.offerId)
-                      .then((blob) => {
-                        const url = URL.createObjectURL(blob);
-                        window.open(url, '_blank');
-                      })
-                      .catch((e) =>
-                        setPullNotice(e instanceof Error ? e.message : 'Unable to fetch contract PDF'),
-                      );
-                  }}
-                  className="h-[34px] px-3.5 rounded-full border border-[#cbd5e1] bg-white text-[12px] font-semibold text-[#102529] cursor-pointer"
-                >
-                  Contract PDF
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    handleCopyEndpoint(selectedDetail.offer.id, selectedDetail.offer.endpointUrl)
-                  }
-                  className="h-[34px] px-3.5 rounded-full border border-[#cbd5e1] bg-white text-[12px] font-semibold text-[#102529] cursor-pointer"
-                >
-                  {copiedId === selectedDetail.offer.id ? 'Copied ✓' : 'Copy URL'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onPullData(selectedDetail.offer.id);
-                    setPullNotice(
-                      `Triggered EDC inbound transfer for "${selectedDetail.offer.title}". View live record in Transfers.`,
-                    );
-                    setDetailOfferId(null);
-                  }}
-                  className="h-[34px] px-4 rounded-full bg-[#002456] text-white text-[12px] font-semibold cursor-pointer"
-                >
-                  Pull Data
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onUnsubscribe(selectedDetail.offer.id);
-                    setDetailOfferId(null);
-                  }}
-                  className="h-[34px] px-3.5 rounded-full border border-[#dc2626]/30 text-[12px] font-semibold text-[#dc2626] hover:bg-[#fef2f2] cursor-pointer"
-                >
-                  Unsubscribe
-                </button>
+                    }}
+                    className="h-[32px] px-3.5 rounded-full border border-[#dc2626]/30 text-[12px] font-semibold text-[#dc2626] hover:bg-[#fef2f2] cursor-pointer"
+                  >
+                    Unsubscribe
+                  </button>
+                </div>
               </div>
+            ) : undefined
+          }
+        />
+      ) : (
+        <>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-[11.5px] font-medium text-[#64748b]">
+                IMDX &gt; <span className="text-[#334155]">SUBSCRIPTIONS</span>
+              </p>
+              <h1 className="mt-0.5 text-[22px] sm:text-[24px] font-semibold text-[#002456] leading-tight">
+                Subscriptions
+              </h1>
+              <p className="mt-0.5 text-[13px] text-[#64748b]">
+                Manage your organization&apos;s data access agreements.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {catalogSource[0] && (
+                <button
+                  type="button"
+                  onClick={() => setDetailOfferId(catalogSource[0].id)}
+                  className="h-[34px] px-4 rounded-full border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12.5px] font-semibold text-[#102529] cursor-pointer"
+                >
+                  + New Subscription
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onGoToCatalog}
+                className="h-[34px] px-4 rounded-full imdx-btn-primary text-[12.5px] font-semibold cursor-pointer"
+              >
+                + Explore Catalog
+              </button>
             </div>
           </div>
-        </ModalPortal>
+
+          {/* 5 KPI Cards matching Workspace Subscriptions screenshot */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3.5">
+            {[
+              {
+                label: 'Total Subscriptions',
+                value: enrichedAll.length,
+                sub: 'Across all agreements',
+              },
+              { label: 'Active', value: activeCount, sub: 'Authorized data access' },
+              { label: 'Pending Activation', value: pendingCount, sub: 'Awaiting approval' },
+              { label: 'Expiring Soon', value: 0, sub: 'Within next 30 days' },
+              { label: 'Paused / Expired', value: pausedCount, sub: 'Across all agreements' },
+            ].map((kpi, idx) => (
+              <div
+                key={kpi.label}
+                style={{ ['--stagger-i' as string]: idx }}
+                className="imdx-stagger-card imdx-card-interactive rounded-[12px] p-4 flex flex-col justify-between gap-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[12px] text-[#64748b]">{kpi.label}</p>
+                  <span className="flex items-center justify-center size-7 rounded-[7px] bg-[#e9faf5] text-[#059669] text-[12px] font-bold shrink-0">
+                    ▤
+                  </span>
+                </div>
+                <p className="text-[24px] font-bold text-[#102529] leading-tight">
+                  {String(kpi.value).padStart(2, '0')}
+                </p>
+                <p className="text-[11px] text-[#64748b]">{kpi.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Segmented Tabs */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('mine')}
+              className={`h-[34px] px-4 rounded-[8px] text-[12.5px] font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer ${
+                activeTab === 'mine'
+                  ? 'bg-[#e9faf5] border border-[#10b981]/40 text-[#059669]'
+                  : 'bg-white border border-[#e2e8f0] text-[#475569]'
+              }`}
+            >
+              <span>My Subscriptions</span>
+              <span className="rounded-full bg-white/90 px-2 py-0.5 text-[11px] text-[#102529]">
+                {myItems.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('received')}
+              className={`h-[34px] px-4 rounded-[8px] text-[12.5px] font-semibold inline-flex items-center gap-2 transition-colors cursor-pointer ${
+                activeTab === 'received'
+                  ? 'bg-[#e9faf5] border border-[#10b981]/40 text-[#059669]'
+                  : 'bg-white border border-[#e2e8f0] text-[#475569]'
+              }`}
+            >
+              <span>Received Subscriptions</span>
+              <span className="rounded-full bg-[#f1f5f9] px-2 py-0.5 text-[11px] text-[#102529]">
+                {receivedItems.length}
+              </span>
+            </button>
+          </div>
+
+          {/* Filter Bar + Table Card */}
+          <div className="imdx-card rounded-[12px] overflow-hidden">
+            <div className="p-4 border-b border-[#e2e8f0] flex flex-wrap items-center gap-2.5">
+              <input
+                type="search"
+                value={subSearch}
+                onChange={(e) => setSubSearch(e.target.value)}
+                placeholder="Search subscriptions..."
+                className="flex-1 min-w-[200px] h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px] focus:outline-none focus:border-[#008fa7]"
+              />
+              <select
+                aria-label="Filter subscriptions by status"
+                value={statusFilter}
+                onChange={(e) =>
+                  setStatusFilter(e.target.value as 'All' | 'Active' | 'Pending' | 'Paused')
+                }
+                className="h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px] text-[#102529]"
+              >
+                <option value="All">All statuses</option>
+                <option value="Active">Active</option>
+                <option value="Pending">Pending Activation</option>
+                <option value="Paused">Paused</option>
+              </select>
+              <select
+                aria-label="Filter subscriptions by type"
+                value={typeFilter}
+                onChange={(e) =>
+                  setTypeFilter(e.target.value as 'All' | SubscriptionRecord['planId'])
+                }
+                className="h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[12.5px] text-[#102529]"
+              >
+                <option value="All">All subscription types</option>
+                <option value="subscription">Subscription</option>
+                <option value="pay-per-use">Pay Per Use</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="one-time">One Time</option>
+              </select>
+            </div>
+
+            {filtered.length === 0 ? (
+              <div className="py-10 text-center px-4">
+                <p className="text-[14.5px] text-[#64748b]">
+                  {subscriptions.length === 0
+                    ? 'No active subscriptions yet.'
+                    : 'No subscriptions match this filter.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={onGoToCatalog}
+                  className="mt-3 h-[34px] px-5 rounded-full imdx-btn-primary text-[12.5px] font-semibold cursor-pointer"
+                >
+                  Browse Catalog &rarr;
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[820px]">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-[#e3f9f3]/80 via-[#e8f6fe]/80 to-[#e6f0ff]/80 border-b border-[#b4d7de]/70 text-[10.5px] tracking-wider uppercase text-[#475569]">
+                      <th className="py-2.5 px-4 font-semibold">Subscription ID</th>
+                      <th className="py-2.5 px-3 font-semibold">Dataset</th>
+                      <th className="py-2.5 px-3 font-semibold">Provider Organization</th>
+                      <th className="py-2.5 px-3 font-semibold">Subscription Type</th>
+                      <th className="py-2.5 px-3 font-semibold">Start Date</th>
+                      <th className="py-2.5 px-3 font-semibold">Usage</th>
+                      <th className="py-2.5 px-3 font-semibold">Status</th>
+                      <th className="py-2.5 px-4 text-right font-semibold">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#f1f5f9] text-[12.5px] text-[#475569]">
+                    {filtered.map(({ sub, offer, shortId, derivedStatus, usagePct }, idx) => (
+                      <tr
+                        key={offer.id}
+                        style={{ ['--stagger-i' as string]: idx }}
+                        className="imdx-stagger-row hover:bg-[#f8fafc]"
+                      >
+                        <td className="py-3 px-4 font-mono text-[11.5px] text-[#64748b] whitespace-nowrap">
+                          {shortId}
+                        </td>
+                        <td className="py-3 px-3 font-semibold text-[#102529]">{offer.title}</td>
+                        <td className="py-3 px-3">{offer.publisher}</td>
+                        <td className="py-3 px-3 whitespace-nowrap">{PLAN_LABELS[sub.planId]}</td>
+                        <td className="py-3 px-3 whitespace-nowrap">{sub.subscribedAt}</td>
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-[56px] h-1.5 rounded-full bg-[#e2e8f0] overflow-hidden">
+                              <div
+                                className="h-full bg-[#16b89a]"
+                                style={{ width: `${usagePct}%` }}
+                              />
+                            </div>
+                            <span className="text-[11px] font-medium">{usagePct}%</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                              derivedStatus === 'Active'
+                                ? 'bg-[#dcfce7] text-[#15803d]'
+                                : derivedStatus === 'Pending'
+                                  ? 'bg-[#fef3c7] text-[#b45309]'
+                                  : 'bg-[#f1f5f9] text-[#475569]'
+                            }`}
+                          >
+                            <span
+                              className={`size-1.5 rounded-full ${
+                                derivedStatus === 'Active'
+                                  ? 'bg-[#16a34a]'
+                                  : derivedStatus === 'Pending'
+                                    ? 'bg-[#d97706]'
+                                    : 'bg-[#64748b]'
+                              }`}
+                            />
+                            {derivedStatus}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap space-x-3">
+                          {sub.backendStatus === 'REQUESTED' && onApproveSubscription && (
+                            <button
+                              type="button"
+                              onClick={() => onApproveSubscription(sub.offerId)}
+                              className="text-[12px] font-semibold text-[#059669] hover:underline cursor-pointer"
+                            >
+                              Approve
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setDetailOfferId(offer.id)}
+                            className="text-[12px] font-semibold text-[#059669] hover:underline cursor-pointer"
+                          >
+                            View details
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {signingSubId && (

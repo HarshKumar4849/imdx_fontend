@@ -1209,7 +1209,10 @@ export function App() {
                   <SubscriptionsPage
                     subscriptions={store.subscriptions}
                     offers={liveCatalog}
+                    consentRequests={store.consentRequests}
                     searchQuery={searchQuery}
+                    onRequestConsent={handleRequestConsent}
+                    onSubscribeOffer={handleSubscribeOffer}
                     onApproveSubscription={(subId) => {
                       void cygnusApi
                         .approveSubscription(subId)
