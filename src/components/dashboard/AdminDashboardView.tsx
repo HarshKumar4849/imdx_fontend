@@ -98,13 +98,13 @@ const SECTION_META: Record<AdminNavKey, { label: string; title: string; subtitle
   },
   capacity: {
     label: 'Capacity',
-    title: 'Capacity & Tenants',
-    subtitle: 'Hosted connector cluster capacity, tenant allocation, and DPDP advisories.',
+    title: 'Capacity',
+    subtitle: 'Monitor current workspace utilization, available capacity and planned platform expansion.',
   },
   settings: {
     label: 'Settings',
-    title: 'Governance Settings',
-    subtitle: 'Global governance thresholds, retention rules, and admin notifications.',
+    title: 'Settings',
+    subtitle: 'Manage administrator access, security preferences and platform configuration.',
   },
 };
 
@@ -2122,6 +2122,7 @@ export function AdminDashboardView({
         activeNav === 'settings') && (
         <AdminClusterAndVerifySection
           activeNav={activeNav}
+          onNavigate={onNavigate}
           participants={participants}
           verificationHistory={verificationHistory}
           onAddVerification={(rec) => setVerificationHistory((prev) => [rec, ...prev])}

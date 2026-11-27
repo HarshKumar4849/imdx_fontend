@@ -10,10 +10,62 @@ import {
   type CygnusTenant,
 } from '../../../services/cygnusApi';
 import type { AdminNavKey, AdminParticipant } from '../../../types/dashboard';
-import { StatusBadge, type VerificationRecord } from './AdminShared';
+import { AdminKpiCard, StatusBadge, type VerificationRecord } from './AdminShared';
+
+interface AdminUserAccount {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: 'Active' | 'Invited';
+  lastLogin: string;
+}
+
+const INITIAL_ADMIN_USERS: AdminUserAccount[] = [
+  {
+    id: 'adm-1',
+    name: 'Ananya Mehta',
+    email: 'ananya.mehta@imdx.in',
+    role: 'Super Admin',
+    status: 'Active',
+    lastLogin: 'Today, 09:42',
+  },
+  {
+    id: 'adm-2',
+    name: 'Rahul Verma',
+    email: 'rahul.verma@imdx.in',
+    role: 'Compliance Admin',
+    status: 'Active',
+    lastLogin: 'Yesterday, 17:18',
+  },
+  {
+    id: 'adm-3',
+    name: 'Priya Shah',
+    email: 'priya.shah@imdx.in',
+    role: 'Platform Admin',
+    status: 'Active',
+    lastLogin: '24 Nov, 16:05',
+  },
+  {
+    id: 'adm-4',
+    name: 'Vikram Rao',
+    email: 'vikram.rao@imdx.in',
+    role: 'Operations Admin',
+    status: 'Invited',
+    lastLogin: 'Never',
+  },
+];
+
+type SettingsSectionKey =
+  | 'profile'
+  | 'admin-users'
+  | 'security'
+  | 'platform-config'
+  | 'notifications';
 
 interface AdminClusterAndVerifyProps {
   activeNav: AdminNavKey;
+  onNavigate: (nav: AdminNavKey) => void;
   participants: AdminParticipant[];
   verificationHistory: VerificationRecord[];
   onAddVerification: (record: VerificationRecord) => void;
@@ -49,6 +101,7 @@ const HEALTH_GROUP_LABELS = [
 
 export function AdminClusterAndVerifySection({
   activeNav,
+  onNavigate,
   participants,
   verificationHistory,
   onAddVerification,
@@ -79,6 +132,15 @@ export function AdminClusterAndVerifySection({
   const [selectedVerification, setSelectedVerification] = useState<VerificationRecord | null>(null);
   const [autoRefreshHealth, setAutoRefreshHealth] = useState(true);
   const [breachTitle, setBreachTitle] = useState('');
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionKey>('admin-users');
+  const [adminUsers, setAdminUsers] = useState<AdminUserAccount[]>(INITIAL_ADMIN_USERS);
+  const [isInviteFormOpen, setIsInviteFormOpen] = useState(false);
+  const [inviteName, setInviteName] = useState('');
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('Operations Admin');
+  const [mfaEnforced, setMfaEnforced] = useState(true);
+  const [notifyOnSubmit, setNotifyOnSubmit] = useState(true);
+  const [notifyOnBuildFail, setNotifyOnBuildFail] = useState(true);
 
   const isLiveAdmin = isPlatformConfigured() && Boolean(loadAdminSession()?.token);
 
@@ -581,147 +643,259 @@ export function AdminClusterAndVerifySection({
   }
 
   if (activeNav === 'capacity') {
+    const liveSpaces = capacityState?.live ?? Math.max(1, participants.filter((p) => p.status === 'Active').length);
+    const maxSpaces = capacityState?.max ?? (Number(capacityInput) || 4);
+    const pctUsed = Math.min(100, Math.round((liveSpaces / Math.max(1, maxSpaces)) * 100));
+    const availableSlots = Math.max(0, maxSpaces - liveSpaces);
+    const waitingCount = capacityState?.waiting?.length ?? 0;
+    const failedCount = capacityState?.failed ?? 0;
+    const allocationRows =
+      tenants.length > 0
+        ? tenants.map((t) => ({
+            id: t.id,
+            workspace: t.namespace,
+            participant: t.participantDid,
+            namespace: t.namespace,
+            status: t.status,
+            resources: t.status.toUpperCase() === 'WAITING' ? 'Pending' : '2 vCPU / 4 GB',
+            created: 'Active cluster',
+          }))
+        : participants.slice(0, 4).map((p, idx) => ({
+            id: p.id,
+            workspace: p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 16),
+            participant: p.name,
+            namespace: p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 16),
+            status: p.status === 'Active' ? 'Live' : 'Failed',
+            resources: p.status === 'Active' ? '2 vCPU / 4 GB' : 'Pending',
+            created: `2026-11-${20 - idx}`,
+          }));
+
     return (
       <div className="space-y-4">
-        <div className="imdx-card rounded-[14px] p-5 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-[14px] font-semibold text-[#102529]">
-              Platform Capacity &amp; Tenant Allocation (
-              {clusterHealth?.overall?.toUpperCase() ?? 'HEALTHY'})
+        {/* Top 2 Cards: Current Operational Limit + Workspace Capacity */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-7 imdx-card rounded-[14px] p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold tracking-[0.07em] text-[#059669] uppercase">
+                  CURRENT OPERATIONAL LIMIT
+                </p>
+                <h2 className="mt-0.5 text-[17px] font-semibold text-[#102529]">
+                  Current Live Workspace Capacity
+                </h2>
+              </div>
+              <span className="text-[14px] font-bold text-[#059669]">{pctUsed}%</span>
+            </div>
+
+            <div className="flex items-baseline gap-2">
+              <span className="text-[32px] font-bold leading-none text-[#102529]">{liveSpaces}</span>
+              <span className="text-[13.5px] text-[#64748b]">of {maxSpaces} live workspaces</span>
+            </div>
+
+            <div className="h-2.5 rounded-full bg-[#e2e8f0] overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#059669] to-[#10b981] transition-all duration-300"
+                style={{ width: `${pctUsed}%` }}
+              />
+            </div>
+
+            <p className="text-[12px] font-medium text-[#059669]">
+              ✓ {availableSlots} live workspace slot(s) currently available.
             </p>
-            <p className="text-[12px] text-[#64748b]">
-              Live tenants: {capacityState?.live ?? tenants.length} · Waiting:{' '}
-              {capacityState?.waiting?.length ?? 0} · Max limit: {capacityState?.max ?? capacityInput}
-            </p>
+
+            <div className="pt-1">
+              <label
+                htmlFor="max-live-spaces-input"
+                className="block text-[12px] font-medium text-[#64748b] mb-1.5"
+              >
+                Maximum live spaces
+              </label>
+              <div className="flex items-center gap-2.5">
+                <input
+                  id="max-live-spaces-input"
+                  type="number"
+                  min={1}
+                  value={capacityInput}
+                  onChange={(e) => onCapacityInputChange(e.target.value)}
+                  className="w-[150px] h-[36px] rounded-[8px] border border-[#cbd5e1] bg-white px-3 text-[13px] focus:outline-none focus:border-[#008fa7]"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const maxVal = Number(capacityInput) || 25;
+                    if (isLiveAdmin) {
+                      void cygnusApi
+                        .setCapacity(maxVal)
+                        .then(() => onActionNote(`Max capacity updated to ${maxVal}.`));
+                    } else {
+                      onActionNote(`Max tenant capacity set to ${maxVal}.`);
+                    }
+                    onAppendAudit('Updated Cluster Capacity', `Max ${maxVal}`);
+                  }}
+                  className="h-[36px] px-5 rounded-full imdx-btn-primary text-[12.5px] font-semibold cursor-pointer"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min={1}
-              value={capacityInput}
-              onChange={(e) => onCapacityInputChange(e.target.value)}
-              aria-label="Max tenant capacity"
-              className="w-[82px] h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-2.5 text-[13px]"
-            />
+
+          <div className="lg:col-span-5 imdx-card rounded-[14px] p-5 flex flex-col justify-between gap-4">
+            <div>
+              <p className="text-[12px] font-medium text-[#64748b]">Additional workspace</p>
+              <h2 className="mt-0.5 text-[17px] font-semibold text-[#102529]">Workspace Capacity</h2>
+              <p className="mt-3 text-[32px] font-bold leading-none text-[#102529]">
+                {maxSpaces + availableSlots}
+              </p>
+              <p className="mt-1 text-[12.5px] text-[#64748b]">Room for more workspaces</p>
+            </div>
+
+            <div className="imdx-subbox rounded-[10px] p-3.5 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[13px] font-semibold text-[#102529]">Auto-scaling</span>
+                <StatusBadge status="Enabled" />
+              </div>
+              <p className="text-[12px] text-[#64748b] leading-relaxed">
+                Servers are automatically added or removed based on workspace demand.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Middle 3 KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <AdminKpiCard
+            index={0}
+            label="Failed Builds"
+            value={failedCount}
+            subtext={failedCount > 0 ? 'Requires investigation' : 'No build failures'}
+            boxBg="bg-[#fee2e2]"
+            dotColor="bg-[#dc2626]"
+          />
+          <AdminKpiCard
+            index={1}
+            label="Waiting for Slot"
+            value={waitingCount}
+            subtext="Awaiting available capacity"
+            boxBg="bg-[#fef3c7]"
+            dotColor="bg-[#d97706]"
+          />
+          <AdminKpiCard
+            index={2}
+            label="Successful Builds"
+            value={liveSpaces}
+            subtext="Active provisioned spaces"
+            boxBg="bg-[#dcfce7]"
+            dotColor="bg-[#16a34a]"
+          />
+        </div>
+
+        {/* Workspace Allocation Table */}
+        <div className="imdx-card rounded-[14px] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-[#e2e8f0] flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-[16px] font-semibold text-[#102529]">Workspace Allocation</h2>
+              <p className="text-[12px] text-[#64748b]">Current requests and provisioned environments</p>
+            </div>
             <button
               type="button"
-              onClick={() => {
-                const maxVal = Number(capacityInput) || 25;
-                if (isLiveAdmin) {
-                  void cygnusApi
-                    .setCapacity(maxVal)
-                    .then(() => onActionNote(`Max capacity updated to ${maxVal}.`));
-                } else {
-                  onActionNote(`Max tenant capacity set to ${maxVal}.`);
-                }
-                onAppendAudit('Updated Cluster Capacity', `Max ${maxVal}`);
-              }}
-              className="h-[34px] px-4 rounded-full bg-[#002456] text-white text-[12px] font-semibold cursor-pointer"
+              onClick={() => onNavigate('applications')}
+              className="h-[34px] px-4 rounded-[8px] border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12.5px] font-semibold text-[#102529] cursor-pointer"
             >
-              Save Capacity
+              Review Waiting Queue
             </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[740px]">
+              <thead>
+                <tr className="bg-gradient-to-r from-[#e3f9f3]/80 via-[#e8f6fe]/80 to-[#e6f0ff]/80 border-b border-[#b4d7de]/70 text-[12px] text-[#102529]">
+                  <th className="py-2.5 px-4 font-semibold">Workspace</th>
+                  <th className="py-2.5 px-3.5 font-semibold">Participant</th>
+                  <th className="py-2.5 px-3.5 font-semibold">Namespace</th>
+                  <th className="py-2.5 px-3.5 font-semibold">Build Status</th>
+                  <th className="py-2.5 px-3.5 font-semibold">Resource Allocation</th>
+                  <th className="py-2.5 px-3.5 font-semibold">Created</th>
+                  <th className="py-2.5 px-4 font-semibold text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#f1f5f9] text-[13px] text-[#475569]">
+                {allocationRows.map((row, idx) => (
+                  <tr
+                    key={row.id}
+                    style={{ ['--stagger-i' as string]: idx }}
+                    className="imdx-stagger-row hover:bg-[#f8fafc]"
+                  >
+                    <td className="py-3 px-4 font-mono text-[12px] font-semibold text-[#102529]">
+                      {row.workspace}
+                    </td>
+                    <td className="py-3 px-3.5 font-semibold text-[#102529]">{row.participant}</td>
+                    <td className="py-3 px-3.5 font-mono text-[12px]">{row.namespace}</td>
+                    <td className="py-3 px-3.5">
+                      <StatusBadge status={row.status} />
+                    </td>
+                    <td className="py-3 px-3.5 text-[12.5px]">{row.resources}</td>
+                    <td className="py-3 px-3.5 text-[12px]">{row.created}</td>
+                    <td className="py-3 px-4 text-right space-x-2 whitespace-nowrap">
+                      {isLiveAdmin && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void cygnusApi.retryTenant(row.id)}
+                            className="text-[12px] font-semibold text-[#008fa7] hover:underline cursor-pointer"
+                          >
+                            Retry
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void cygnusApi.rotateTenantVaultToken(row.id)}
+                            className="text-[12px] font-semibold text-[#002456] hover:underline cursor-pointer"
+                          >
+                            Vault
+                          </button>
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onNavigate('participants')}
+                        className="text-[12.5px] font-semibold text-[#002456] hover:underline cursor-pointer"
+                      >
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {INITIAL_CAPACITY_CLUSTERS.map((cluster, idx) => (
-            <div
-              key={cluster.id}
-              style={{ ['--stagger-i' as string]: idx }}
-              className="imdx-stagger-card imdx-card rounded-[14px] p-5 space-y-4"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="text-[12px] text-[#64748b]">{cluster.region}</p>
-                  <h3 className="text-[16px] font-bold text-[#102529] font-mono">
-                    {cluster.clusterName}
-                  </h3>
-                </div>
-                <StatusBadge status={cluster.status === 'Healthy' ? 'Healthy' : 'Warning'} />
-              </div>
-
-              <div className="space-y-3 text-[13px]">
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-[#64748b]">Tenants Allocated</span>
-                    <span className="font-semibold text-[#102529]">
-                      {cluster.tenantsAllocated} / {cluster.tenantsMax}
-                    </span>
-                  </div>
-                  <div className="h-2 rounded-full bg-[#eef2f6] overflow-hidden">
-                    <div
-                      className="h-full bg-[#002456]"
-                      style={{
-                        width: `${Math.round((cluster.tenantsAllocated / cluster.tenantsMax) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-[#64748b]">CPU Utilization</span>
-                    <span className="font-semibold text-[#102529]">{cluster.cpuPct}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-[#eef2f6] overflow-hidden">
-                    <div className="h-full bg-[#32c4a6]" style={{ width: `${cluster.cpuPct}%` }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-1">
-                    <span className="text-[#64748b]">Memory Utilization</span>
-                    <span className="font-semibold text-[#102529]">{cluster.memoryPct}%</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-[#eef2f6] overflow-hidden">
-                    <div
-                      className="h-full bg-[#3553ab]"
-                      style={{ width: `${cluster.memoryPct}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
+        {/* Bottom Recommendation Callout */}
+        <div className="imdx-card rounded-[12px] px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 size-7 rounded-full bg-[#e6ecff] text-[#002456] flex items-center justify-center text-[13px] font-bold shrink-0">
+              i
+            </span>
+            <div>
+              <p className="text-[13.5px] font-semibold text-[#102529]">Capacity recommendation</p>
+              <p className="text-[12px] text-[#64748b]">
+                Review pending workspace demand before increasing the live workspace limit ({waitingCount}{' '}
+                waiting, {failedCount} failed builds).
+              </p>
             </div>
-          ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate('cluster-health')}
+            className="h-[34px] px-4 rounded-[8px] border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12.5px] font-semibold text-[#102529] cursor-pointer"
+          >
+            View Resource Usage
+          </button>
         </div>
 
+        {/* DPDP Breach Advisories */}
         <div className="imdx-card rounded-[14px] p-5 space-y-3">
-          <h3 className="text-[15.5px] font-semibold text-[#102529]">
-            Hosted Tenants &amp; DPDP Breach Governance
-          </h3>
-          {tenants.length > 0 && (
-            <div className="space-y-2">
-              {tenants.map((t) => (
-                <div
-                  key={t.id}
-                  className="imdx-subbox rounded-[9px] px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-[12px]"
-                >
-                  <div>
-                    <span className="font-mono font-bold text-[#002456]">{t.namespace}</span> ·{' '}
-                    {t.participantDid} ({t.status})
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void cygnusApi.retryTenant(t.id)}
-                      className="text-[#008fa7] font-semibold hover:underline cursor-pointer"
-                    >
-                      Retry
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void cygnusApi.rotateTenantVaultToken(t.id)}
-                      className="text-[#002456] font-semibold hover:underline cursor-pointer"
-                    >
-                      Rotate Vault
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2 pt-1">
+          <h3 className="text-[15px] font-semibold text-[#102529]">DPDP Breach Advisories</h3>
+          <div className="flex flex-wrap gap-2">
             <input
               type="text"
               value={breachTitle}
@@ -796,73 +970,367 @@ export function AdminClusterAndVerifySection({
     );
   }
 
-  return (
-    <div className="imdx-card rounded-[16px] p-6 sm:p-8 space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label
-            htmlFor="admin-gov-email"
-            className="block text-[14px] font-medium text-[#0f0f0f] mb-1.5"
-          >
-            Governance Notification Email
-          </label>
-          <input
-            id="admin-gov-email"
-            type="email"
-            value={adminEmail}
-            onChange={(e) => onAdminEmailChange(e.target.value)}
-            className="w-full h-[44px] rounded-[10px] border border-[#c1c1c1] bg-white px-4 text-[14px] focus:outline-none focus:border-[#002456]"
-          />
-        </div>
+  // 10. SETTINGS (2-column left sub-nav + right panel matching Figma)
+  const SETTINGS_TABS: Array<{ key: SettingsSectionKey; label: string }> = [
+    { key: 'profile', label: 'My Profile' },
+    { key: 'admin-users', label: 'Admin users' },
+    { key: 'security', label: 'Security & Access' },
+    { key: 'platform-config', label: 'Platform Configuration' },
+    { key: 'notifications', label: 'Notifications' },
+  ];
 
-        <div>
-          <label
-            htmlFor="admin-retention"
-            className="block text-[14px] font-medium text-[#0f0f0f] mb-1.5"
-          >
-            Audit Log Retention (Days)
-          </label>
-          <input
-            id="admin-retention"
-            type="number"
-            value={auditRetentionDays}
-            onChange={(e) => onAuditRetentionDaysChange(e.target.value)}
-            className="w-full h-[44px] rounded-[10px] border border-[#c1c1c1] bg-white px-4 text-[14px] focus:outline-none focus:border-[#002456]"
-          />
-        </div>
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      {/* Left sub-navigation list */}
+      <div className="lg:col-span-3 space-y-1">
+        {SETTINGS_TABS.map((tab) => {
+          const active = settingsSection === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setSettingsSection(tab.key)}
+              className={`w-full h-[38px] px-3.5 rounded-[9px] flex items-center justify-between text-[13px] transition-all cursor-pointer ${
+                active
+                  ? 'imdx-card font-semibold text-[#102529] shadow-xs'
+                  : 'text-[#64748b] hover:bg-white/60 hover:text-[#102529]'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span className="text-[12px]">&rarr;</span>
+            </button>
+          );
+        })}
       </div>
 
-      <label className="flex items-center justify-between gap-4 cursor-pointer pt-2">
-        <div>
-          <p className="text-[15.5px] font-medium text-[#0f0f0f]">
-            Auto-Provision Hosted Workspaces Upon Approval
-          </p>
-          <p className="text-[13.5px] text-[#64748b]">
-            Immediately allocate ap-south-1 connector credentials when an admin approves an
-            application.
-          </p>
-        </div>
-        <input
-          type="checkbox"
-          checked={autoProvision}
-          onChange={(e) => onAutoProvisionChange(e.target.checked)}
-          className="size-5 accent-[#32c4a6] cursor-pointer"
-        />
-      </label>
+      {/* Right panel */}
+      <div className="lg:col-span-9 imdx-card rounded-[14px] p-5 sm:p-6 space-y-4">
+        {settingsSection === 'admin-users' && (
+          <>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-[17px] font-semibold text-[#102529]">Administrator Management</h2>
+                <p className="text-[12.5px] text-[#64748b]">
+                  Invite administrators and manage role-based access.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsInviteFormOpen((prev) => !prev)}
+                className="h-[36px] px-4 rounded-full imdx-btn-primary text-[12.5px] font-semibold cursor-pointer"
+              >
+                Invite Admin
+              </button>
+            </div>
 
-      <div className="flex items-center justify-end gap-4">
-        {settingsSaved && (
-          <span className="text-[13.5px] font-medium text-[#059669]">
-            Admin governance settings saved.
-          </span>
+            {isInviteFormOpen && (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!inviteEmail.trim()) return;
+                  setAdminUsers((prev) => [
+                    ...prev,
+                    {
+                      id: `adm-${Date.now()}`,
+                      name: inviteName.trim() || inviteEmail.split('@')[0],
+                      email: inviteEmail.trim(),
+                      role: inviteRole,
+                      status: 'Invited',
+                      lastLogin: 'Never',
+                    },
+                  ]);
+                  onAppendAudit('Invited Platform Admin', inviteEmail.trim());
+                  setInviteName('');
+                  setInviteEmail('');
+                  setIsInviteFormOpen(false);
+                }}
+                className="imdx-subbox rounded-[10px] p-3.5 grid grid-cols-1 sm:grid-cols-4 gap-2.5 items-end"
+              >
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#475569] mb-1">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={inviteName}
+                    onChange={(e) => setInviteName(e.target.value)}
+                    placeholder="Admin name"
+                    className="w-full h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-2.5 text-[12.5px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#475569] mb-1">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="name@imdx.in"
+                    className="w-full h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-2.5 text-[12.5px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-[#475569] mb-1">
+                    Role
+                  </label>
+                  <select
+                    value={inviteRole}
+                    onChange={(e) => setInviteRole(e.target.value)}
+                    className="w-full h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-2.5 text-[12.5px]"
+                  >
+                    <option value="Super Admin">Super Admin</option>
+                    <option value="Compliance Admin">Compliance Admin</option>
+                    <option value="Platform Admin">Platform Admin</option>
+                    <option value="Operations Admin">Operations Admin</option>
+                  </select>
+                </div>
+                <button
+                  type="submit"
+                  className="h-[34px] px-4 rounded-full bg-[#002456] text-white text-[12px] font-semibold cursor-pointer"
+                >
+                  Send Invite
+                </button>
+              </form>
+            )}
+
+            <div className="imdx-subbox rounded-[10px] px-4 py-3 flex items-start gap-3">
+              <span className="size-7 rounded-[7px] bg-[#e9faf5] border border-[#bbf7d0] text-[#059669] flex items-center justify-center text-[13px] shrink-0">
+                🛡
+              </span>
+              <div>
+                <p className="text-[13px] font-semibold text-[#102529]">Super Admin access</p>
+                <p className="text-[12px] text-[#64748b]">
+                  Only authorized Super Admins can invite users or change roles.
+                </p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[600px]">
+                <thead>
+                  <tr className="border-b border-[#e2e8f0] text-[12px] text-[#64748b]">
+                    <th className="py-2.5 px-2 font-semibold">Name</th>
+                    <th className="py-2.5 px-3 font-semibold">Email</th>
+                    <th className="py-2.5 px-3 font-semibold">Role</th>
+                    <th className="py-2.5 px-3 font-semibold">Account Status</th>
+                    <th className="py-2.5 px-3 font-semibold">Last Login</th>
+                    <th className="py-2.5 px-2 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#f1f5f9] text-[13px] text-[#475569]">
+                  {adminUsers.map((adm) => (
+                    <tr key={adm.id} className="hover:bg-[#f8fafc]">
+                      <td className="py-3 px-2 font-semibold text-[#102529]">{adm.name}</td>
+                      <td className="py-3 px-3 text-[12.5px]">{adm.email}</td>
+                      <td className="py-3 px-3 text-[12.5px]">{adm.role}</td>
+                      <td className="py-3 px-3">
+                        <StatusBadge status={adm.status} />
+                      </td>
+                      <td className="py-3 px-3 text-[12px]">{adm.lastLogin}</td>
+                      <td className="py-3 px-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onActionNote(`Reviewed access for ${adm.name} (${adm.role}).`);
+                          }}
+                          className="text-[#475569] hover:text-[#102529] font-bold px-2 cursor-pointer"
+                          aria-label={`Manage ${adm.name}`}
+                        >
+                          &hellip;
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
-        <button
-          type="button"
-          onClick={onSaveSettings}
-          className="h-[40px] px-6 rounded-full imdx-btn-primary text-[14px] font-semibold cursor-pointer"
-        >
-          Save Settings
-        </button>
+
+        {settingsSection === 'profile' && (
+          <div className="space-y-4">
+            <h2 className="text-[17px] font-semibold text-[#102529]">My Profile</h2>
+            <div className="imdx-subbox rounded-[10px] p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-[13px]">
+              <div>
+                <p className="text-[#64748b]">Name</p>
+                <p className="mt-0.5 font-semibold text-[#102529]">Ananya Mehta</p>
+              </div>
+              <div>
+                <p className="text-[#64748b]">Role</p>
+                <p className="mt-0.5 font-semibold text-[#102529]">Super Admin · Governance Desk</p>
+              </div>
+              <div>
+                <p className="text-[#64748b]">Governance Contact</p>
+                <p className="mt-0.5 font-semibold text-[#102529]">{adminEmail}</p>
+              </div>
+              <div>
+                <p className="text-[#64748b]">Session Security</p>
+                <p className="mt-0.5 font-semibold text-[#059669]">Active Admin Token Verified</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {settingsSection === 'security' && (
+          <div className="space-y-4">
+            <h2 className="text-[17px] font-semibold text-[#102529]">Security &amp; Access</h2>
+            <label className="flex items-center justify-between gap-4 cursor-pointer pt-1">
+              <div>
+                <p className="text-[14.5px] font-medium text-[#102529]">
+                  Enforce Multi-Factor Authentication for Super Admins
+                </p>
+                <p className="text-[12.5px] text-[#64748b]">
+                  Require verified authenticator session on governance logins.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={mfaEnforced}
+                onChange={(e) => setMfaEnforced(e.target.checked)}
+                className="size-5 accent-[#32c4a6] cursor-pointer"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 cursor-pointer pt-1">
+              <div>
+                <p className="text-[14.5px] font-medium text-[#102529]">
+                  Auto-Provision Hosted Workspaces Upon Approval
+                </p>
+                <p className="text-[12.5px] text-[#64748b]">
+                  Immediately allocate connector credentials when an admin approves an application.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={autoProvision}
+                onChange={(e) => onAutoProvisionChange(e.target.checked)}
+                className="size-5 accent-[#32c4a6] cursor-pointer"
+              />
+            </label>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              {settingsSaved && (
+                <span className="text-[13px] font-medium text-[#059669]">Settings saved.</span>
+              )}
+              <button
+                type="button"
+                onClick={onSaveSettings}
+                className="h-[38px] px-5 rounded-full imdx-btn-primary text-[13px] font-semibold cursor-pointer"
+              >
+                Save Preferences
+              </button>
+            </div>
+          </div>
+        )}
+
+        {settingsSection === 'platform-config' && (
+          <div className="space-y-5">
+            <div>
+              <h2 className="text-[17px] font-semibold text-[#102529]">Platform Configuration</h2>
+              <p className="text-[12.5px] text-[#64748b]">
+                Configure governance notification addresses and immutable audit log retention.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label
+                  htmlFor="admin-gov-email"
+                  className="block text-[13px] font-medium text-[#102529] mb-1.5"
+                >
+                  Governance Notification Email
+                </label>
+                <input
+                  id="admin-gov-email"
+                  type="email"
+                  value={adminEmail}
+                  onChange={(e) => onAdminEmailChange(e.target.value)}
+                  className="w-full h-[40px] rounded-[9px] border border-[#cbd5e1] bg-white px-3.5 text-[13.5px] focus:outline-none focus:border-[#008fa7]"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="admin-retention"
+                  className="block text-[13px] font-medium text-[#102529] mb-1.5"
+                >
+                  Audit Log Retention (Days)
+                </label>
+                <input
+                  id="admin-retention"
+                  type="number"
+                  value={auditRetentionDays}
+                  onChange={(e) => onAuditRetentionDaysChange(e.target.value)}
+                  className="w-full h-[40px] rounded-[9px] border border-[#cbd5e1] bg-white px-3.5 text-[13.5px] focus:outline-none focus:border-[#008fa7]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-4">
+              {settingsSaved && (
+                <span className="text-[13px] font-medium text-[#059669]">
+                  Admin governance settings saved.
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={onSaveSettings}
+                className="h-[38px] px-5 rounded-full imdx-btn-primary text-[13px] font-semibold cursor-pointer"
+              >
+                Save Settings
+              </button>
+            </div>
+          </div>
+        )}
+
+        {settingsSection === 'notifications' && (
+          <div className="space-y-4">
+            <h2 className="text-[17px] font-semibold text-[#102529]">Notifications</h2>
+            <label className="flex items-center justify-between gap-4 cursor-pointer">
+              <div>
+                <p className="text-[14px] font-medium text-[#102529]">
+                  New Application Submissions
+                </p>
+                <p className="text-[12px] text-[#64748b]">
+                  Notify governance desk when a new organization submits onboarding documents.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={notifyOnSubmit}
+                onChange={(e) => setNotifyOnSubmit(e.target.checked)}
+                className="size-5 accent-[#32c4a6] cursor-pointer"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-4 cursor-pointer">
+              <div>
+                <p className="text-[14px] font-medium text-[#102529]">
+                  Workspace Build Failures &amp; SLA Warnings
+                </p>
+                <p className="text-[12px] text-[#64748b]">
+                  Send immediate alert when provisioning stalls or approaches 48h SLA.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={notifyOnBuildFail}
+                onChange={(e) => setNotifyOnBuildFail(e.target.checked)}
+                className="size-5 accent-[#32c4a6] cursor-pointer"
+              />
+            </label>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              {settingsSaved && (
+                <span className="text-[13px] font-medium text-[#059669]">Saved.</span>
+              )}
+              <button
+                type="button"
+                onClick={onSaveSettings}
+                className="h-[38px] px-5 rounded-full imdx-btn-primary text-[13px] font-semibold cursor-pointer"
+              >
+                Save Notification Rules
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
