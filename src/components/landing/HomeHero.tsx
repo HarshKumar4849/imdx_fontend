@@ -568,28 +568,80 @@ export function HomeHero({ onStartOnboarding, onOpenWorkspace }: HomeHeroProps) 
           <span className="floating-plus floating-plus-three" />
           <span className="floating-plus floating-plus-four" />
         </div>
-        <div className="intro-content">
-          <img
-            className="imdx-logo"
-            src="/images/imdx-logo-transparent.webp"
-            alt="IMDX — India Mobility Data Exchange"
-            fetchPriority="high"
-            decoding="async"
-          />
-          <div className="summary-frame">
-            <p className="imdx-summary">{summary}</p>
+
+        {/* Top-left IMDX logo + top-right action buttons */}
+        <div className="hero-top-bar">
+          <a
+            href="#imdx-overview"
+            onClick={(event) => {
+              event.preventDefault();
+              navigateToSection("imdx");
+            }}
+            className="hero-brand-link"
+            aria-label="IMDX — India Mobility Data Exchange"
+          >
+            <img
+              className="imdx-logo"
+              src="/images/imdx-logo-transparent.webp"
+              alt="IMDX — India Mobility Data Exchange"
+              fetchPriority="high"
+              decoding="async"
+            />
+          </a>
+
+          <div className="hero-video-controls">
+            <button className="hero-video-button" type="button" onClick={onOpenWorkspace}>
+              Member Workspace
+            </button>
+            <button
+              className="hero-video-button hero-video-button-accent imdx-btn-primary"
+              type="button"
+              onClick={onStartOnboarding}
+            >
+              Start Application →
+            </button>
+            <button
+              className="hero-video-button hero-video-button-primary"
+              type="button"
+              onClick={openFullVideo}
+            >
+              Watch complete video
+            </button>
           </div>
         </div>
-        <div className="hero-video-controls">
-          <button className="hero-video-button" type="button" onClick={onOpenWorkspace}>
-            Member Workspace
-          </button>
-          <button className="hero-video-button hero-video-button-accent" type="button" onClick={onStartOnboarding}>
-            Start Application →
-          </button>
-          <button className="hero-video-button hero-video-button-primary" type="button" onClick={openFullVideo}>
-            Watch complete video
-          </button>
+
+        {/* Fresh luminous hero stage with repositioned description */}
+        <div className="intro-content">
+          <div className="hero-stage-card">
+            <span className="hero-eyebrow">Sovereign Mobility Dataspace · Eclipse Tractus-X</span>
+            <h1 className="hero-headline">
+              India Mobility <span className="imdx-gradient-text">Data Exchange</span>
+            </h1>
+            <div className="summary-frame">
+              <p className="imdx-summary">{summary}</p>
+            </div>
+            <div className="hero-cta-row">
+              <button
+                type="button"
+                onClick={onStartOnboarding}
+                className="hero-cta-main imdx-btn-primary"
+              >
+                Start Application →
+              </button>
+              <button
+                type="button"
+                onClick={onOpenWorkspace}
+                className="hero-cta-secondary"
+              >
+                Open Member Workspace
+              </button>
+            </div>
+            <div className="hero-trust-pills" aria-label="Core architecture pillars">
+              <span>Peer-to-Peer EDC Transfers</span>
+              <span>DPDP Act 2023 Consent</span>
+              <span>Signed Contract Ledger</span>
+            </div>
+          </div>
         </div>
       </section>
         <div className={`video-modal-backdrop${watchingVideo ? " is-open" : ""}`} aria-hidden={!watchingVideo} role="presentation" onMouseDown={(event) => {
