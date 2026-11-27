@@ -622,16 +622,6 @@ export function HomeHero({ onStartOnboarding, onOpenWorkspace }: HomeHeroProps) 
                 >
                   Start Application →
                 </button>
-                <button
-                  type="button"
-                  onClick={openFullVideo}
-                  className="hero-cta-secondary"
-                >
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                    <path d="M4.25 3.1a.9.9 0 0 1 1.36-.77l7.5 4.4a.9.9 0 0 1 0 1.54l-7.5 4.4A.9.9 0 0 1 4.25 11.9V3.1Z" />
-                  </svg>
-                  Watch complete video
-                </button>
               </div>
               <div className="hero-trust-pills" aria-label="Core architecture pillars">
                 <span>Peer-to-Peer EDC Transfers</span>
@@ -676,7 +666,7 @@ export function HomeHero({ onStartOnboarding, onOpenWorkspace }: HomeHeroProps) 
                       </svg>
                     </span>
                     <span className="hero-video-play-copy">
-                      <strong>Watch complete video</strong>
+                      <strong>Play Ecosystem Walkthrough</strong>
                       <span>How sovereign mobility exchange works</span>
                     </span>
                   </button>
