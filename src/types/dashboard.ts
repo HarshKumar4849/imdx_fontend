@@ -58,6 +58,10 @@ export type PlanOptionId = 'pay-per-use' | 'subscription' | 'hybrid' | 'one-time
 
 export interface SubscriptionRecord {
   offerId: string;
+  datasetId?: string;
+  datasetName?: string;
+  providerDid?: string;
+  backendStatus?: string;
   planId: PlanOptionId;
   purpose: string;
   subscribedAt: string;

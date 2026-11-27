@@ -503,9 +503,15 @@ export function App() {
       .then(({ liveCatalog: catalog, ...patch }) => {
         if (!active) return;
         if (catalog) setLiveCatalog(catalog);
-        if (Object.keys(patch).length > 0) {
-          setStore((prev) => ({ ...prev, ...patch }));
-        }
+        setStore((prev) => ({
+          ...prev,
+          datasets: patch.datasets ?? [],
+          subscriptions: patch.subscriptions ?? [],
+          transfers: patch.transfers ?? [],
+          consentRequests: patch.consentRequests ?? [],
+          accessRequests: patch.accessRequests ?? [],
+          billingTransactions: patch.billingTransactions ?? [],
+        }));
       })
       .catch((err) => {
         if (active) reportError(err, 'Failed to sync workspace data from Cygnus Agent.');
@@ -1096,6 +1102,13 @@ export function App() {
             }))
           }
           userDisplayName={userDisplayName}
+          userRoleLabel={
+            adminSession?.token || portalMode === 'admin'
+              ? 'Governance Desk'
+              : userSession
+                ? `${userSession.role === 'PROV' ? 'Provider' : 'Consumer'} · ${userSession.bpn || userSession.orgRole}`
+                : 'Organization Admin'
+          }
           isBackendLive={isBackendConfigured()}
           isAuthenticated={isAuthenticated}
           onSignInClick={() => setIsAuthModalOpen(true)}
@@ -1191,7 +1204,22 @@ export function App() {
                 {activeWorkspaceNav === 'subscriptions' && (
                   <SubscriptionsPage
                     subscriptions={store.subscriptions}
+                    offers={liveCatalog}
                     searchQuery={searchQuery}
+                    onApproveSubscription={(subId) => {
+                      void cygnusApi
+                        .approveSubscription(subId)
+                        .then(() => {
+                          setStore((prev) => ({
+                            ...prev,
+                            subscriptions: prev.subscriptions.map((s) =>
+                              s.offerId === subId ? { ...s, status: 'Active', backendStatus: 'APPROVED' } : s,
+                            ),
+                          }));
+                          setApiFeedback({ kind: 'info', message: 'Subscription approved.' });
+                        })
+                        .catch((err) => reportError(err, 'Unable to approve subscription.'));
+                    }}
                     onUnsubscribe={handleUnsubscribeOffer}
                     onPullData={(offerId) => {
                       const offer = (liveCatalog ?? CATALOG_OFFERS).find((o) => o.id === offerId);

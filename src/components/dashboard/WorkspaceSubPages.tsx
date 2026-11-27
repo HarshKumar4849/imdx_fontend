@@ -12,6 +12,7 @@ import type { CygnusComputeJob, CygnusOrgUser } from '../../services/cygnusApi';
 import { ModalPortal } from '../ModalPortal';
 import type {
   BillingTransaction,
+  CatalogOffer,
   SubscriptionRecord,
   TransferItem,
   WorkspacePreferences,
@@ -20,7 +21,9 @@ import type { OnboardingState } from '../../types/onboarding';
 
 interface SubscriptionsPageProps {
   subscriptions: SubscriptionRecord[];
+  offers?: CatalogOffer[];
   searchQuery: string;
+  onApproveSubscription?: (id: string) => void;
   onUnsubscribe: (id: string) => void;
   onPullData: (offerId: string) => void;
   onGoToCatalog: () => void;
@@ -35,7 +38,9 @@ const PLAN_LABELS: Record<SubscriptionRecord['planId'], string> = {
 
 export function SubscriptionsPage({
   subscriptions,
+  offers,
   searchQuery,
+  onApproveSubscription,
   onUnsubscribe,
   onPullData,
   onGoToCatalog,
@@ -46,14 +51,30 @@ export function SubscriptionsPage({
   const [otpInput, setOtpInput] = useState('');
   const [contractNotice, setContractNotice] = useState('');
 
+  const catalogSource = offers ?? CATALOG_OFFERS;
   const enriched = subscriptions
-    .map((sub) => ({
-      sub,
-      offer: CATALOG_OFFERS.find((o) => o.id === sub.offerId),
-    }))
-    .filter((entry): entry is { sub: SubscriptionRecord; offer: NonNullable<typeof entry.offer> } =>
-      Boolean(entry.offer),
-    )
+    .map((sub) => {
+      const matched = catalogSource.find((o) => o.id === sub.datasetId || o.id === sub.offerId);
+      const displayOffer: CatalogOffer = matched ?? {
+        id: sub.offerId,
+        datasetId: sub.datasetId || sub.offerId,
+        category: 'Mobility',
+        version: 'v1.0',
+        tags: sub.purpose,
+        qualityScore: 95,
+        title: sub.datasetName || sub.datasetId || sub.offerId,
+        protocol: 'GTFS',
+        description: 'Live Cygnus contract subscription',
+        did: sub.providerDid || '',
+        publisher: sub.providerDid || 'Connected Peer',
+        licence: 'IMDX Contract',
+        coverage: 'India',
+        updateFrequency: 'Live',
+        endpointUrl: `${API_BASE_URL || ''}/api/v1/subscriptions/${sub.offerId}`,
+        fields: [],
+      };
+      return { sub, offer: displayOffer };
+    })
     .filter(({ offer, sub }) => {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
@@ -138,6 +159,11 @@ export function SubscriptionsPage({
                     <span className="rounded-full bg-[#eff6ff] border border-[#bfdbfe] px-2.5 py-0.5 text-[10.5px] font-semibold text-[#1e3a8a]">
                       {PLAN_LABELS[sub.planId]}
                     </span>
+                    {sub.backendStatus && (
+                      <span className="rounded-full bg-[#fef3c7] px-2.5 py-0.5 text-[10.5px] font-semibold text-[#b45309]">
+                        {sub.backendStatus}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-0.5 text-[12px] text-[#64748b]">
                     {offer.publisher} · Purpose: {sub.purpose} · Active since {sub.subscribedAt}
@@ -148,6 +174,15 @@ export function SubscriptionsPage({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {sub.backendStatus === 'REQUESTED' && onApproveSubscription && (
+                    <button
+                      type="button"
+                      onClick={() => onApproveSubscription(sub.offerId)}
+                      className="h-[30px] px-3 rounded-[6px] bg-[#22b59b] hover:bg-[#1ca18a] text-white text-[12px] font-semibold cursor-pointer"
+                    >
+                      Approve
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {

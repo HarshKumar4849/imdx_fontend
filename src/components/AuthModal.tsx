@@ -147,8 +147,8 @@ export function AuthCard({
 
     setBusy(true);
     try {
-      // Unified central sign-in on standalone /login or Admin mode routes both ADMN -> /admin and ORG -> SSO redirectUrl.
-      if (mode === 'admin' || (isStandalone && !agentOnlyHost)) {
+      // Unified central sign-in on standalone /login routes both ADMN -> /admin and ORG -> tenant SSO redirectUrl.
+      if (mode === 'admin' || isStandalone) {
         const res = await cygnusApi.loginUnified(email.trim(), password);
         if (res.kind === 'admin' && res.token && res.role === 'ADMN') {
           const adminSession: PersistedAdminSession = {
@@ -179,20 +179,7 @@ export function AuthCard({
         return;
       }
 
-      // Workspace mode inside tenant agent or modal:
-      if (isStandalone && agentOnlyHost) {
-        const unified = await cygnusApi.loginUnified(email.trim(), password);
-        if (
-          unified.kind === 'org' &&
-          !unified.noWorkspace &&
-          typeof unified.redirectUrl === 'string' &&
-          (unified.redirectUrl.startsWith('https://') || unified.redirectUrl.startsWith('http://'))
-        ) {
-          window.location.assign(unified.redirectUrl);
-          return;
-        }
-      }
-
+      // Workspace mode inside in-app modal:
       const res = await cygnusApi.loginUser(email.trim(), password);
       const session: PersistedUserSession = {
         ...res,
@@ -266,7 +253,7 @@ export function AuthCard({
         )}
       </div>
 
-      {view === 'login' && (
+      {view === 'login' && !isStandalone && (
         <div className="grid grid-cols-3 gap-1 rounded-[9px] border border-[#b4d7de] bg-white/75 p-1 text-[12px]">
           <button
             type="button"

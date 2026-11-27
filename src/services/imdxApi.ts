@@ -207,6 +207,10 @@ function mapCygnusOfferModel(model?: string | null): PlanOptionId {
 function mapCygnusSubscription(sub: CygnusSubscription): SubscriptionRecord {
   return {
     offerId: sub.id,
+    datasetId: sub.datasetId,
+    datasetName: sub.datasetName,
+    providerDid: sub.providerDid,
+    backendStatus: sub.status,
     planId: mapCygnusOfferModel(sub.offerModel),
     purpose: sub.purpose || 'ANALYTICS',
     subscribedAt: sub.agreedAt || sub.createdAt || 'Active',
@@ -568,7 +572,7 @@ export const imdxApi = {
         invoicesRes.status === 'fulfilled' ? invoicesRes.value : [],
       );
     }
-    if (catalogRes.status === 'fulfilled' && catalogRes.value.length > 0) {
+    if (catalogRes.status === 'fulfilled') {
       patch.liveCatalog = mapCygnusCatalogToOffers(catalogRes.value);
     }
     return patch;

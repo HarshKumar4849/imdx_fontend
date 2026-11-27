@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import imdxLogoDark from '../../assets/imdx-logo-dark.webp';
 import searchIcon from '../../assets/search-icon.svg';
+import { isAgentHost } from '../../services/cygnusApi';
 import type { AdminNavKey, NotificationItem, WorkspaceNavKey } from '../../types/dashboard';
 import { updateCardSpotlight } from '../../utils/spotlight';
 import { InternalBackdrop } from '../InternalBackdrop';
@@ -19,6 +20,7 @@ interface DashboardLayoutProps {
   onMarkNotificationRead: (id: string) => void;
   onMarkAllNotificationsRead: () => void;
   userDisplayName: string;
+  userRoleLabel?: string;
   onGoToLanding: () => void;
   onGoToOnboarding: () => void;
   isBackendLive?: boolean;
@@ -119,6 +121,7 @@ const WORKSPACE_NAV_ITEMS: Array<{ key: WorkspaceNavKey; label: string }> = [
   { key: 'catalog', label: 'Catalog' },
   { key: 'subscriptions', label: 'Subscriptions' },
   { key: 'transfers', label: 'Transfers' },
+  { key: 'compute', label: 'Compute' },
   { key: 'billing', label: 'Billing' },
   { key: 'settings', label: 'Settings' },
 ];
@@ -147,6 +150,7 @@ export function DashboardLayout({
   onMarkNotificationRead,
   onMarkAllNotificationsRead,
   userDisplayName,
+  userRoleLabel,
   onGoToLanding,
   onGoToOnboarding,
   isBackendLive,
@@ -155,6 +159,7 @@ export function DashboardLayout({
   onSignOutClick,
   children,
 }: DashboardLayoutProps) {
+  const showDemoSwitcher = !isAuthenticated && !isAgentHost();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSupportNotice, setShowSupportNotice] = useState(false);
@@ -245,44 +250,46 @@ export function DashboardLayout({
 
         {/* Right Controls: Portal Switcher + Bell + User Profile */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="hidden lg:flex items-center rounded-full border border-[#e2e8f0] bg-[#f8fafc] p-0.5 text-[11.5px] gap-0.5">
-            <button
-              type="button"
-              onClick={onGoToLanding}
-              className="px-2.5 py-1 rounded-full font-medium text-[#475569] hover:text-[#102529] transition-colors cursor-pointer"
-            >
-              Home
-            </button>
-            <button
-              type="button"
-              onClick={() => onPortalModeChange('workspace')}
-              className={`px-2.5 py-1 rounded-full font-semibold transition-all cursor-pointer ${
-                portalMode === 'workspace'
-                  ? 'bg-[#002456] text-white shadow-xs'
-                  : 'text-[#475569] hover:text-[#102529]'
-              }`}
-            >
-              Workspace
-            </button>
-            <button
-              type="button"
-              onClick={() => onPortalModeChange('admin')}
-              className={`px-2.5 py-1 rounded-full font-semibold transition-all cursor-pointer ${
-                portalMode === 'admin'
-                  ? 'bg-[#002456] text-white shadow-xs'
-                  : 'text-[#475569] hover:text-[#102529]'
-              }`}
-            >
-              Admin
-            </button>
-            <button
-              type="button"
-              onClick={onGoToOnboarding}
-              className="px-2.5 py-1 rounded-full font-medium text-[#008fa7] hover:bg-white transition-colors cursor-pointer"
-            >
-              Onboarding
-            </button>
-          </div>
+          {showDemoSwitcher && (
+            <div className="hidden lg:flex items-center rounded-full border border-[#e2e8f0] bg-[#f8fafc] p-0.5 text-[11.5px] gap-0.5">
+              <button
+                type="button"
+                onClick={onGoToLanding}
+                className="px-2.5 py-1 rounded-full font-medium text-[#475569] hover:text-[#102529] transition-colors cursor-pointer"
+              >
+                Home
+              </button>
+              <button
+                type="button"
+                onClick={() => onPortalModeChange('workspace')}
+                className={`px-2.5 py-1 rounded-full font-semibold transition-all cursor-pointer ${
+                  portalMode === 'workspace'
+                    ? 'bg-[#002456] text-white shadow-xs'
+                    : 'text-[#475569] hover:text-[#102529]'
+                }`}
+              >
+                Workspace
+              </button>
+              <button
+                type="button"
+                onClick={() => onPortalModeChange('admin')}
+                className={`px-2.5 py-1 rounded-full font-semibold transition-all cursor-pointer ${
+                  portalMode === 'admin'
+                    ? 'bg-[#002456] text-white shadow-xs'
+                    : 'text-[#475569] hover:text-[#102529]'
+                }`}
+              >
+                Admin
+              </button>
+              <button
+                type="button"
+                onClick={onGoToOnboarding}
+                className="px-2.5 py-1 rounded-full font-medium text-[#008fa7] hover:bg-white transition-colors cursor-pointer"
+              >
+                Onboarding
+              </button>
+            </div>
+          )}
 
           <div ref={notificationsRef} className="relative">
             <button
@@ -399,7 +406,7 @@ export function DashboardLayout({
             <div className="hidden md:block leading-tight">
               <p className="text-[12.5px] font-semibold text-[#102529]">{userDisplayName}</p>
               <p className="text-[10.5px] text-[#64748b]">
-                {portalMode === 'admin' ? 'Governance Desk' : 'Organization Admin'}
+                {userRoleLabel || (portalMode === 'admin' ? 'Governance Desk' : 'Organization Admin')}
               </p>
             </div>
           </div>
@@ -408,44 +415,46 @@ export function DashboardLayout({
 
       {/* Mobile & Tablet Portal Switcher + Search Bar */}
       <div className="lg:hidden border-b border-[#008fc3]/15 bg-gradient-to-r from-[#ebfcf8]/95 via-[#eff9fe]/95 to-[#ebf2ff]/95 px-3 py-2 space-y-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11.5px]">
-          <button
-            type="button"
-            onClick={onGoToLanding}
-            className="px-3 py-1 rounded-full border border-[#b4d7de] bg-white/80 font-medium text-[#475569] hover:text-[#102529] shrink-0 cursor-pointer"
-          >
-            Home
-          </button>
-          <button
-            type="button"
-            onClick={() => onPortalModeChange('workspace')}
-            className={`px-3 py-1 rounded-full font-semibold shrink-0 cursor-pointer transition-all ${
-              portalMode === 'workspace'
-                ? 'bg-[#002456] text-white shadow-xs'
-                : 'border border-[#b4d7de] bg-white/80 text-[#475569]'
-            }`}
-          >
-            Workspace
-          </button>
-          <button
-            type="button"
-            onClick={() => onPortalModeChange('admin')}
-            className={`px-3 py-1 rounded-full font-semibold shrink-0 cursor-pointer transition-all ${
-              portalMode === 'admin'
-                ? 'bg-[#002456] text-white shadow-xs'
-                : 'border border-[#b4d7de] bg-white/80 text-[#475569]'
-            }`}
-          >
-            Admin
-          </button>
-          <button
-            type="button"
-            onClick={onGoToOnboarding}
-            className="px-3 py-1 rounded-full border border-[#008fa7]/30 bg-white/80 font-medium text-[#008fa7] shrink-0 cursor-pointer"
-          >
-            Onboarding
-          </button>
-        </div>
+        {showDemoSwitcher && (
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-[11.5px]">
+            <button
+              type="button"
+              onClick={onGoToLanding}
+              className="px-3 py-1 rounded-full border border-[#b4d7de] bg-white/80 font-medium text-[#475569] hover:text-[#102529] shrink-0 cursor-pointer"
+            >
+              Home
+            </button>
+            <button
+              type="button"
+              onClick={() => onPortalModeChange('workspace')}
+              className={`px-3 py-1 rounded-full font-semibold shrink-0 cursor-pointer transition-all ${
+                portalMode === 'workspace'
+                  ? 'bg-[#002456] text-white shadow-xs'
+                  : 'border border-[#b4d7de] bg-white/80 text-[#475569]'
+              }`}
+            >
+              Workspace
+            </button>
+            <button
+              type="button"
+              onClick={() => onPortalModeChange('admin')}
+              className={`px-3 py-1 rounded-full font-semibold shrink-0 cursor-pointer transition-all ${
+                portalMode === 'admin'
+                  ? 'bg-[#002456] text-white shadow-xs'
+                  : 'border border-[#b4d7de] bg-white/80 text-[#475569]'
+              }`}
+            >
+              Admin
+            </button>
+            <button
+              type="button"
+              onClick={onGoToOnboarding}
+              className="px-3 py-1 rounded-full border border-[#008fa7]/30 bg-white/80 font-medium text-[#008fa7] shrink-0 cursor-pointer"
+            >
+              Onboarding
+            </button>
+          </div>
+        )}
 
         <div className="sm:hidden flex h-[34px] items-center bg-white/90 border border-[#b4d7de] rounded-[8px] px-3 gap-2 focus-within:border-[#008fa7]">
           <img src={searchIcon} alt="" width={14} height={14} className="shrink-0 opacity-70" />
