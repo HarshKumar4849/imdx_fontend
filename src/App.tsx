@@ -186,6 +186,32 @@ function resolveInitialLocation(): {
   const hasAdmin = Boolean(loadAdminSession()?.token);
 
   if (path === '/sso' || params.get('code')) {
+    if (params.get('code') && isPlatformConfigured()) {
+      return {
+        section: 'portal',
+        authView: 'login',
+        authMode: 'workspace',
+        authToken: '',
+        ssoError: false,
+        portalMode: 'workspace',
+        workspaceNav: 'dashboard',
+        adminNav: 'dashboard',
+        openTrackModal: false,
+      };
+    }
+    if ((isPlatformConfigured() || agentHost) && !hasUser) {
+      return {
+        section: 'auth',
+        authView: 'login',
+        authMode: 'workspace',
+        authToken: '',
+        ssoError: false,
+        portalMode: 'workspace',
+        workspaceNav: 'dashboard',
+        adminNav: 'dashboard',
+        openTrackModal: false,
+      };
+    }
     return {
       section: 'portal',
       authView: 'login',
@@ -309,6 +335,20 @@ function resolveInitialLocation(): {
     else if (path.includes('/capacity')) adminNav = 'capacity';
     else if (path.includes('/settings')) adminNav = 'settings';
 
+    if (agentHost && !hasUser) {
+      return {
+        section: 'auth',
+        authView: 'login',
+        authMode: 'workspace',
+        authToken: '',
+        ssoError: false,
+        portalMode: 'workspace',
+        workspaceNav: 'dashboard',
+        adminNav,
+        openTrackModal: false,
+      };
+    }
+
     if (isPlatformConfigured() && !hasAdmin) {
       return {
         section: 'auth',
@@ -336,6 +376,19 @@ function resolveInitialLocation(): {
   }
 
   if (path.startsWith('/workspace') || (agentHost && hasUser) || path === '/datasets' || path === '/catalog' || path === '/subscriptions' || path === '/transfers' || path === '/billing' || path === '/compute' || path === '/settings') {
+    if ((isPlatformConfigured() || agentHost) && !hasUser) {
+      return {
+        section: 'auth',
+        authView: 'login',
+        authMode: 'workspace',
+        authToken: '',
+        ssoError: params.get('error') === 'sso',
+        portalMode: 'workspace',
+        workspaceNav: 'dashboard',
+        adminNav: 'dashboard',
+        openTrackModal: false,
+      };
+    }
     let workspaceNav: WorkspaceNavKey = 'dashboard';
     if (path.startsWith('/datasets')) workspaceNav = 'datasets';
     else if (path.startsWith('/catalog')) workspaceNav = 'catalog';
@@ -388,7 +441,18 @@ export function App() {
   const [initialLoc] = useState(resolveInitialLocation);
   const [appSection, setAppSection] = useState<AppSection>(initialLoc.section);
   const [authView, setAuthView] = useState<AuthScreenView>(initialLoc.authView);
+  const [authMode, setAuthMode] = useState<'workspace' | 'admin'>(initialLoc.authMode);
   const [authInviteToken, setAuthInviteToken] = useState(initialLoc.authToken);
+  const [ssoExchanging, setSsoExchanging] = useState(() => {
+    if (typeof window === 'undefined' || !isPlatformConfigured()) return false;
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    const params = new URLSearchParams(window.location.search);
+    const hashToken = window.location.hash.replace(/^#/, '');
+    const appToken = path === '/application' && hashToken ? hashToken : params.get('token');
+    if (path === '/set-password' || path === '/invite') return false;
+    if (appToken && path !== '/invite' && path !== '/apply') return false;
+    return Boolean(params.get('code'));
+  });
   const [policySlug, setPolicySlug] = useState<string | undefined>(initialLoc.policySlug);
   const [applyLinkSentEmail, setApplyLinkSentEmail] = useState<string | null>(null);
   const [portalMode, setPortalMode] = useState<'workspace' | 'admin'>(initialLoc.portalMode);
@@ -483,12 +547,19 @@ export function App() {
           setUserSession(next);
           setPortalMode('workspace');
           setAppSection('portal');
+          setSsoExchanging(false);
+          if (!isAgentHost()) {
+            window.history.replaceState(null, '', '/workspace');
+          }
         })
         .catch(() => {
           if (!active) return;
+          setAuthMode('workspace');
           setAuthView('login');
           setApiFeedback({ kind: 'error', message: 'Your sign-in link did not work. Please sign in again.' });
+          setSsoExchanging(false);
           setAppSection('auth');
+          window.history.replaceState(null, '', '/login');
         });
     }
 
@@ -593,6 +664,16 @@ export function App() {
   const openWorkspace = (nav: WorkspaceNavKey = 'dashboard') => {
     setPortalMode('workspace');
     setActiveWorkspaceNav(nav);
+    if ((isPlatformConfigured() || isAgentHost()) && !userSession?.token) {
+      setAuthMode('workspace');
+      setAuthView('login');
+      setAppSection('auth');
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', '/login');
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     setAppSection('portal');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -982,10 +1063,14 @@ export function App() {
     setAdminSession(null);
     setLiveCatalog(undefined);
     setApiFeedback({ kind: 'info', message: 'Signed out cleanly.' });
-    if (isPlatformConfigured()) {
+    if (isPlatformConfigured() || isAgentHost()) {
       setAuthView('login');
+      setAuthMode(portalMode === 'admin' && !isAgentHost() ? 'admin' : 'workspace');
       setAuthInviteToken('');
       setAppSection('auth');
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', '/login');
+      }
     }
   };
 
@@ -1004,39 +1089,48 @@ export function App() {
   const isAuthenticated =
     portalMode === 'admin' ? Boolean(adminSession?.token) : Boolean(userSession?.token);
 
+  const renderAuthScreen = (modeOverride?: 'workspace' | 'admin') => (
+    <AuthStandalonePage
+      key={`${modeOverride ?? authMode}-${authView}-${authInviteToken}`}
+      initialMode={modeOverride ?? authMode}
+      initialView={authView}
+      inviteOrResetToken={authInviteToken}
+      ssoError={initialLoc.ssoError}
+      onUserSignedIn={(session) => {
+        setUserSession(session);
+        setPortalMode('workspace');
+        setAppSection('portal');
+        setApiFeedback({ kind: 'info', message: `Signed in as ${session.email}.` });
+        if (typeof window !== 'undefined') {
+          window.history.replaceState(null, '', isAgentHost() ? '/' : '/workspace');
+        }
+      }}
+      onAdminSignedIn={(session) => {
+        setAdminSession(session);
+        setPortalMode('admin');
+        setAppSection('portal');
+        setApiFeedback({ kind: 'info', message: `Signed in to Governance Desk (${session.email}).` });
+        if (typeof window !== 'undefined') {
+          window.history.replaceState(null, '', '/admin');
+        }
+      }}
+      onNavigateToApply={handleStartNewOnboarding}
+      onNavigateToTrack={() => {
+        setAppSection('onboarding');
+        setIsTrackModalOpen(true);
+      }}
+      onGoHome={() => {
+        setAppSection('landing');
+        if (typeof window !== 'undefined') {
+          window.history.replaceState(null, '', '/');
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }}
+    />
+  );
+
   if (appSection === 'auth') {
-    return (
-      <>
-        <AuthStandalonePage
-          key={`${authView}-${authInviteToken}`}
-          initialMode={initialLoc.authMode}
-          initialView={authView}
-          inviteOrResetToken={authInviteToken}
-          ssoError={initialLoc.ssoError}
-          onUserSignedIn={(session) => {
-            setUserSession(session);
-            setPortalMode('workspace');
-            setAppSection('portal');
-            setApiFeedback({ kind: 'info', message: `Signed in as ${session.email}.` });
-          }}
-          onAdminSignedIn={(session) => {
-            setAdminSession(session);
-            setPortalMode('admin');
-            setAppSection('portal');
-            setApiFeedback({ kind: 'info', message: `Signed in to Governance Desk (${session.email}).` });
-          }}
-          onNavigateToApply={handleStartNewOnboarding}
-          onNavigateToTrack={() => {
-            setAppSection('onboarding');
-            setIsTrackModalOpen(true);
-          }}
-          onGoHome={() => {
-            setAppSection('landing');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
-        />
-      </>
-    );
+    return renderAuthScreen();
   }
 
   if (appSection === 'policies') {
@@ -1075,11 +1169,33 @@ export function App() {
   }
 
   if (appSection === 'portal') {
+    if (ssoExchanging) {
+      return <RouteLoadingFallback />;
+    }
+    if ((isPlatformConfigured() || isAgentHost()) && !isAuthenticated) {
+      return renderAuthScreen(portalMode === 'admin' && !isAgentHost() ? 'admin' : 'workspace');
+    }
     return (
       <Suspense fallback={<RouteLoadingFallback />}>
         <DashboardLayout
           portalMode={portalMode}
-          onPortalModeChange={setPortalMode}
+          onPortalModeChange={(nextMode) => {
+            if (nextMode === 'admin') {
+              if (isAgentHost()) return;
+              if (isPlatformConfigured() && !adminSession?.token) {
+                setAuthMode('admin');
+                setAuthView('login');
+                setIsAuthModalOpen(true);
+                return;
+              }
+            } else if ((isPlatformConfigured() || isAgentHost()) && !userSession?.token) {
+              setAuthMode('workspace');
+              setAuthView('login');
+              setIsAuthModalOpen(true);
+              return;
+            }
+            setPortalMode(nextMode);
+          }}
           activeWorkspaceNav={activeWorkspaceNav}
           onWorkspaceNavChange={setActiveWorkspaceNav}
           activeAdminNav={activeAdminNav}

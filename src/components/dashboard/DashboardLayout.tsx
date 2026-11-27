@@ -175,7 +175,7 @@ export function DashboardLayout({
   onSignOutClick,
   children,
 }: DashboardLayoutProps) {
-  const showDemoSwitcher = !isAuthenticated && !isAgentHost();
+  const showDemoSwitcher = !isAuthenticated && !isAgentHost() && !isBackendLive;
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSupportNotice, setShowSupportNotice] = useState(false);
