@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { CATALOG_OFFERS } from '../../data/dashboardData';
 import {
   API_BASE_URL,
   cygnusApi,
@@ -14,6 +13,7 @@ import type {
   BillingTransaction,
   CatalogOffer,
   ConsentRequestRecord,
+  MyDatasetItem,
   PlanOptionId,
   SubscriptionRecord,
   TransferItem,
@@ -81,24 +81,24 @@ export function SubscriptionsPage({
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Pending' | 'Paused'>('All');
   const [typeFilter, setTypeFilter] = useState<'All' | SubscriptionRecord['planId']>('All');
   const [detailOfferId, setDetailOfferId] = useState<string | null>(null);
+  const [mountNowMs] = useState(() => Date.now());
 
-  const catalogSource = offers ?? CATALOG_OFFERS;
-  const enrichedAll = subscriptions.map((sub, index) => {
+  const catalogSource = offers ?? [];
+  const enrichedAll = subscriptions.map((sub) => {
     const matched = catalogSource.find((o) => o.id === sub.datasetId || o.id === sub.offerId);
     const displayOffer: CatalogOffer = matched ?? {
       id: sub.offerId,
       datasetId: sub.datasetId || sub.offerId,
       category: 'Mobility',
       version: 'v1.0',
-      tags: sub.purpose,
-      qualityScore: 95,
+      tags: sub.purpose || '—',
       title: sub.datasetName || sub.datasetId || sub.offerId,
       protocol: 'GTFS',
       description: 'Live Cygnus contract subscription',
-      did: sub.providerDid || '',
+      did: sub.providerDid || '—',
       publisher: sub.providerDid || 'Connected Peer',
       licence: 'IMDX Contract',
-      coverage: 'India',
+      coverage: '—',
       updateFrequency: 'Live',
       endpointUrl: `${API_BASE_URL || ''}/api/v1/subscriptions/${sub.offerId}`,
       fields: [],
@@ -112,9 +112,8 @@ export function SubscriptionsPage({
     return {
       sub,
       offer: displayOffer,
-      shortId: `SUB-${String(9800 - index * 17).padStart(4, '0')}`,
+      shortId: sub.offerId.length > 14 ? `${sub.offerId.slice(0, 12)}…` : sub.offerId,
       derivedStatus,
-      usagePct: Math.min(100, 42 + ((index * 23) % 55)),
     };
   });
 
@@ -138,6 +137,12 @@ export function SubscriptionsPage({
   const activeCount = enrichedAll.filter((x) => x.derivedStatus === 'Active').length;
   const pendingCount = enrichedAll.filter((x) => x.derivedStatus === 'Pending').length;
   const pausedCount = enrichedAll.filter((x) => x.derivedStatus === 'Paused').length;
+  const expiringSoonCount = enrichedAll.filter((x) => {
+    const dt = Date.parse(x.sub.subscribedAt);
+    if (Number.isNaN(dt)) return false;
+    const diffDays = (dt - mountNowMs) / (1000 * 60 * 60 * 24);
+    return diffDays >= 0 && diffDays <= 30;
+  }).length;
   const selectedDetail = detailOfferId
     ? enrichedAll.find((x) => x.offer.id === detailOfferId || x.sub.offerId === detailOfferId) ?? null
     : null;
@@ -362,7 +367,7 @@ export function SubscriptionsPage({
               },
               {
                 label: 'Expiring Soon',
-                value: 0,
+                value: expiringSoonCount,
                 sub: 'Within next 30 days',
                 icon: <ClockIcon size={15} />,
               },
@@ -488,36 +493,29 @@ export function SubscriptionsPage({
                       <th className="py-2.5 px-3 font-semibold">Provider Organization</th>
                       <th className="py-2.5 px-3 font-semibold">Subscription Type</th>
                       <th className="py-2.5 px-3 font-semibold">Start Date</th>
-                      <th className="py-2.5 px-3 font-semibold">Usage</th>
+                      <th className="py-2.5 px-3 font-semibold">Purpose</th>
                       <th className="py-2.5 px-3 font-semibold">Status</th>
                       <th className="py-2.5 px-4 text-right font-semibold">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#f1f5f9] text-[12.5px] text-[#475569]">
-                    {filtered.map(({ sub, offer, shortId, derivedStatus, usagePct }, idx) => (
+                    {filtered.map(({ sub, offer, shortId, derivedStatus }, idx) => (
                       <tr
                         key={offer.id}
                         style={{ ['--stagger-i' as string]: idx }}
                         className="imdx-stagger-row hover:bg-[#f8fafc]"
                       >
-                        <td className="py-3 px-4 font-mono text-[11.5px] text-[#64748b] whitespace-nowrap">
+                        <td
+                          className="py-3 px-4 font-mono text-[11.5px] text-[#64748b] whitespace-nowrap"
+                          title={sub.offerId}
+                        >
                           {shortId}
                         </td>
                         <td className="py-3 px-3 font-semibold text-[#102529]">{offer.title}</td>
                         <td className="py-3 px-3">{offer.publisher}</td>
                         <td className="py-3 px-3 whitespace-nowrap">{PLAN_LABELS[sub.planId]}</td>
                         <td className="py-3 px-3 whitespace-nowrap">{sub.subscribedAt}</td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-[56px] h-1.5 rounded-full bg-[#e2e8f0] overflow-hidden">
-                              <div
-                                className="h-full bg-[#16b89a]"
-                                style={{ width: `${usagePct}%` }}
-                              />
-                            </div>
-                            <span className="text-[11px] font-medium">{usagePct}%</span>
-                          </div>
-                        </td>
+                        <td className="py-3 px-3">{sub.purpose || '—'}</td>
                         <td className="py-3 px-3 whitespace-nowrap">
                           <span
                             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
@@ -669,6 +667,28 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
   const completedCount = transfers.filter((t) => t.status === 'Completed').length;
   const streamingCount = transfers.filter((t) => t.status === 'Streaming').length;
 
+  const totalMb = transfers.reduce((sum, tx) => {
+    const match = tx.volume.trim().match(/^([\d.]+)\s*(B|KB|MB|GB)$/i);
+    if (!match) return sum;
+    const num = Number.parseFloat(match[1]);
+    if (Number.isNaN(num)) return sum;
+    const unit = match[2].toUpperCase();
+    if (unit === 'GB') return sum + num * 1024;
+    if (unit === 'MB') return sum + num;
+    if (unit === 'KB') return sum + num / 1024;
+    return sum + num / (1024 * 1024);
+  }, 0);
+  const exchangedValue =
+    totalMb >= 1024
+      ? `${(totalMb / 1024).toFixed(2)} GB`
+      : totalMb > 0
+        ? `${totalMb.toFixed(1)} MB`
+        : String(completedCount);
+  const exchangedSub =
+    totalMb > 0
+      ? 'Delivered & received volume'
+      : `${completedCount} completed payload${completedCount === 1 ? '' : 's'}`;
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -752,8 +772,8 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
           },
           {
             label: 'Total Data Exchanged',
-            value: '2.84 GB',
-            sub: 'Delivered & received volume',
+            value: exchangedValue,
+            sub: exchangedSub,
             icon: <DatabaseIcon size={15} />,
           },
         ].map((kpi, idx) => (
@@ -825,7 +845,14 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
               </tr>
             </thead>
             <tbody className="divide-y divide-[#f1f5f9] text-[12.5px] text-[#475569]">
-              {visible.map((tx, idx) => (
+              {visible.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-[#64748b]">
+                    No transfers recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                visible.map((tx, idx) => (
                 <tr
                   key={tx.id}
                   style={{ ['--stagger-i' as string]: idx }}
@@ -874,7 +901,8 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
                     </button>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
@@ -920,10 +948,8 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
                   <span className="font-mono font-semibold text-[#102529]">{receiptTx.volume}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-[#64748b]">Audit Hash:</span>
-                  <span className="font-mono text-[11px] text-[#008fa7]">
-                    sha256:{receiptTx.id.toLowerCase()}...9f4a
-                  </span>
+                  <span className="text-[#64748b]">Timestamp:</span>
+                  <span className="font-mono text-[11px] text-[#008fa7]">{receiptTx.timestamp}</span>
                 </div>
               </div>
               <div className="flex justify-end gap-2">
@@ -960,35 +986,42 @@ export function TransfersPage({ transfers, searchQuery, onTriggerSync }: Transfe
   );
 }
 
-export function ComputePage() {
+interface ComputePageProps {
+  datasets?: MyDatasetItem[];
+  offers?: CatalogOffer[];
+}
+
+export function ComputePage({ datasets = [], offers = [] }: ComputePageProps = {}) {
+  const defaultDatasetId = offers[0]?.datasetId || datasets[0]?.id || '';
+  const defaultProviderDid = offers[0]?.did || '';
   const [apiKey, setApiKey] = useState('');
-  const [datasetId, setDatasetId] = useState(CATALOG_OFFERS[0].datasetId);
+  const [datasetId, setDatasetId] = useState(defaultDatasetId);
   const [wasmModule, setWasmModule] = useState('imdx-traffic-aggregator-v1');
   const [jobs, setJobs] = useState<CygnusComputeJob[]>([]);
   const [jobNote, setJobNote] = useState('');
+  const session = loadUserSession();
 
   const handleRunCompute = () => {
-    const session = loadUserSession();
-    if (!isPlatformConfigured() || !apiKey.trim()) {
-      const localJob: CygnusComputeJob = {
-        id: `cj-${Date.now()}`,
-        datasetId,
-        consumerDid: session?.did ?? 'did:web:abcmobility.in',
-        providerDid: CATALOG_OFFERS[0].did,
-        status: 'COMPLETED',
-        wasmModule,
-        result: '{"meanSpeedKmh": 34.8, "congestionIndex": 0.42}',
-      };
-      setJobs((prev) => [localJob, ...prev]);
-      setJobNote('Compute job executed cleanly.');
+    if (!apiKey.trim()) {
+      setJobNote('Enter your subscription X-API-Key to submit a compute job.');
+      return;
+    }
+    if (!datasetId.trim()) {
+      setJobNote('Enter a Dataset ID to run compute analytics.');
+      return;
+    }
+    if (!isPlatformConfigured()) {
+      setJobNote('Connect to the Cygnus platform backend to submit compute jobs.');
       return;
     }
     void cygnusApi
       .createComputeJob(apiKey.trim(), {
-        datasetId,
-        consumerDid: session?.did ?? 'did:web:consumer',
-        providerDid: CATALOG_OFFERS[0].did,
-        wasmModule,
+        datasetId: datasetId.trim(),
+        consumerDid: session?.did ?? '',
+        providerDid:
+          offers.find((o) => o.datasetId === datasetId.trim() || o.id === datasetId.trim())?.did ??
+          defaultProviderDid,
+        wasmModule: wasmModule.trim(),
       })
       .then((created) => {
         setJobs((prev) => [created, ...prev]);
@@ -1013,21 +1046,21 @@ export function ComputePage() {
         {[
           {
             idx: '01',
-            label: 'Hosting Mode',
-            value: 'Hosted By IMDX',
-            sub: 'Region: ap-south-1 (Mumbai)',
+            label: 'Runtime Identity',
+            value: isPlatformConfigured() ? 'Cygnus Enclave' : 'Offline',
+            sub: session?.did || 'Sign in required',
           },
           {
             idx: '02',
-            label: 'Connector Uptime',
-            value: '99.98%',
-            sub: 'Healthy · 2 active workers',
+            label: 'Submitted Jobs',
+            value: String(jobs.length),
+            sub: `${jobs.filter((j) => j.status === 'COMPLETED').length} completed in session`,
           },
           {
             idx: '03',
-            label: 'Memory Utilization',
-            value: '42%',
-            sub: '3.4 GB / 8 GB allocated',
+            label: 'Eligible Datasets',
+            value: String(offers.length || datasets.length),
+            sub: offers.length > 0 ? 'Catalog datasets available' : 'From workspace registry',
           },
         ].map((card, idx) => (
           <div
@@ -1089,8 +1122,12 @@ export function ComputePage() {
           <button
             type="button"
             onClick={() => {
-              if (!isPlatformConfigured() || !apiKey.trim()) {
-                setJobNote('Federated round completed (1 round aggregated).');
+              if (!apiKey.trim()) {
+                setJobNote('Enter your subscription X-API-Key to load federated jobs.');
+                return;
+              }
+              if (!isPlatformConfigured()) {
+                setJobNote('Connect to the Cygnus platform backend to load federated jobs.');
                 return;
               }
               void cygnusApi
@@ -1128,46 +1165,44 @@ export function ComputePage() {
   );
 }
 
-const BILLING_SERIES = {
-  '6m': {
-    labels: ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'],
-    revenue: [
-      { x: 0, y: 66 },
-      { x: 72, y: 62 },
-      { x: 144, y: 54 },
-      { x: 216, y: 47 },
-      { x: 288, y: 39 },
-      { x: 360, y: 34 },
-    ],
-    spending: [
-      { x: 0, y: 58 },
-      { x: 72, y: 51 },
-      { x: 144, y: 40 },
-      { x: 216, y: 31 },
-      { x: 288, y: 21 },
-      { x: 360, y: 12 },
-    ],
-  },
-  '12m': {
-    labels: ['Dec', 'Feb', 'Apr', 'Jun', 'Aug', 'Nov'],
-    revenue: [
-      { x: 0, y: 74 },
-      { x: 72, y: 67 },
-      { x: 144, y: 59 },
-      { x: 216, y: 50 },
-      { x: 288, y: 41 },
-      { x: 360, y: 30 },
-    ],
-    spending: [
-      { x: 0, y: 68 },
-      { x: 72, y: 58 },
-      { x: 144, y: 46 },
-      { x: 216, y: 35 },
-      { x: 288, y: 24 },
-      { x: 360, y: 12 },
-    ],
-  },
-};
+function buildBillingSeries(transactions: BillingTransaction[], timeframe: '6m' | '12m') {
+  const monthCount = timeframe === '6m' ? 6 : 12;
+  const now = new Date();
+  const buckets: Array<{ key: string; label: string; revenueInr: number; spendingInr: number }> = [];
+  for (let i = monthCount - 1; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleString('en-US', { month: 'short' });
+    buckets.push({ key, label, revenueInr: 0, spendingInr: 0 });
+  }
+
+  for (const tx of transactions) {
+    const parsed = Date.parse(tx.date);
+    const targetBucket = Number.isNaN(parsed)
+      ? buckets[buckets.length - 1]
+      : buckets.find((b) => {
+          const dt = new Date(parsed);
+          return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}` === b.key;
+        });
+    if (!targetBucket) continue;
+    if (tx.kind === 'earning') {
+      targetBucket.revenueInr += tx.amountInr;
+    } else {
+      targetBucket.spendingInr += tx.amountInr;
+    }
+  }
+
+  const maxAmount = Math.max(1, ...buckets.flatMap((b) => [b.revenueInr, b.spendingInr]));
+  const stepX = buckets.length > 1 ? 360 / (buckets.length - 1) : 360;
+  const toY = (val: number) => Math.round(74 - (val / maxAmount) * 60);
+
+  return {
+    labels: buckets.map((b) => b.label),
+    stepX,
+    revenue: buckets.map((b, idx) => ({ x: Math.round(idx * stepX), y: toY(b.revenueInr) })),
+    spending: buckets.map((b, idx) => ({ x: Math.round(idx * stepX), y: toY(b.spendingInr) })),
+  };
+}
 
 function formatInrCompact(amount: number): string {
   if (amount >= 100000) {
@@ -1201,16 +1236,16 @@ export function BillingPage({
     return true;
   });
 
-  const totalEarnings = transactions
-    .filter((t) => t.kind === 'earning' && t.status === 'Paid')
-    .reduce((acc, t) => acc + t.amountInr, 4195760);
-  const totalSpent = transactions
-    .filter((t) => t.kind === 'spending')
-    .reduce((acc, t) => acc + t.amountInr, 1798000);
+  const paidEarnings = transactions.filter((t) => t.kind === 'earning' && t.status === 'Paid');
+  const pendingEarningsTx = transactions.filter((t) => t.kind === 'earning' && t.status === 'Pending');
+  const spendingTx = transactions.filter((t) => t.kind === 'spending');
+  const totalEarnings = paidEarnings.reduce((acc, t) => acc + t.amountInr, 0);
+  const pendingPayouts = pendingEarningsTx.reduce((acc, t) => acc + t.amountInr, 0);
+  const totalSpent = spendingTx.reduce((acc, t) => acc + t.amountInr, 0);
   const pendingTx = transactions.filter((t) => t.status === 'Pending');
   const pendingAmount = pendingTx.reduce((acc, t) => acc + t.amountInr, 0);
 
-  const series = BILLING_SERIES[timeframe];
+  const series = buildBillingSeries(transactions, timeframe);
 
   const handleExportCsv = () => {
     const headers = 'Transaction ID,Dataset,Counterparty,Type,Billing Period,Amount,Date,Status';
@@ -1278,19 +1313,19 @@ export function BillingPage({
           {
             label: 'Total Earnings',
             value: formatInrCompact(totalEarnings),
-            sub: '₹8.4L this month',
+            sub: `${paidEarnings.length} settled invoice${paidEarnings.length === 1 ? '' : 's'}`,
             icon: <WalletIcon size={15} />,
           },
           {
             label: 'Pending Payouts',
-            value: '₹3.2L',
-            sub: 'Next payout - 30 Nov',
+            value: formatInrCompact(pendingPayouts),
+            sub: `${pendingEarningsTx.length} awaiting settlement`,
             icon: <ClockIcon size={15} />,
           },
           {
             label: 'Total Spent',
             value: formatInrCompact(totalSpent),
-            sub: '₹3.7L this month',
+            sub: `${spendingTx.length} workspace order${spendingTx.length === 1 ? '' : 's'}`,
             icon: <CreditCardIcon size={15} />,
           },
           {
@@ -1353,63 +1388,71 @@ export function BillingPage({
         </div>
 
         <div className="mt-3">
-          <svg viewBox="0 0 384 98" className="w-full h-[110px] overflow-visible">
-            {[20, 44, 68].map((y) => (
-              <line key={y} x1="12" y1={y} x2="372" y2={y} stroke="#f1f5f9" strokeWidth="1" />
-            ))}
-            <g key={timeframe} transform="translate(12, 0)">
-              <polyline
-                className="imdx-chart-line"
-                fill="none"
-                stroke="#16b89a"
-                strokeWidth="2"
-                points={series.revenue.map((p) => `${p.x},${p.y}`).join(' ')}
-              />
-              {series.revenue.map((p, idx) => (
-                <circle
-                  key={`r-${p.x}`}
-                  cx={p.x}
-                  cy={p.y}
-                  r="3"
-                  fill="#16b89a"
-                  style={{ ['--stagger-i' as string]: idx }}
-                  className="imdx-chart-dot"
-                />
+          {transactions.length === 0 ? (
+            <div className="h-[110px] rounded-[10px] border border-dashed border-[#cbd5e1] bg-[#f8fafc]/70 flex items-center justify-center px-4 text-center">
+              <p className="text-[12.5px] text-[#64748b]">
+                No billing transactions recorded yet. Orders and invoices will chart automatically here.
+              </p>
+            </div>
+          ) : (
+            <svg viewBox="0 0 384 98" className="w-full h-[110px] overflow-visible">
+              {[20, 44, 68].map((y) => (
+                <line key={y} x1="12" y1={y} x2="372" y2={y} stroke="#f1f5f9" strokeWidth="1" />
               ))}
-
-              <polyline
-                className="imdx-chart-line"
-                fill="none"
-                stroke="#002456"
-                strokeWidth="2"
-                points={series.spending.map((p) => `${p.x},${p.y}`).join(' ')}
-              />
-              {series.spending.map((p, idx) => (
-                <circle
-                  key={`s-${p.x}`}
-                  cx={p.x}
-                  cy={p.y}
-                  r="3"
-                  fill="#002456"
-                  style={{ ['--stagger-i' as string]: idx }}
-                  className="imdx-chart-dot"
+              <g key={timeframe} transform="translate(12, 0)">
+                <polyline
+                  className="imdx-chart-line"
+                  fill="none"
+                  stroke="#16b89a"
+                  strokeWidth="2"
+                  points={series.revenue.map((p) => `${p.x},${p.y}`).join(' ')}
                 />
-              ))}
-            </g>
+                {series.revenue.map((p, idx) => (
+                  <circle
+                    key={`r-${idx}`}
+                    cx={p.x}
+                    cy={p.y}
+                    r="3"
+                    fill="#16b89a"
+                    style={{ ['--stagger-i' as string]: idx }}
+                    className="imdx-chart-dot"
+                  />
+                ))}
 
-            {series.labels.map((label, idx) => (
-              <text
-                key={label}
-                x={12 + idx * 72}
-                y="90"
-                fontSize="9.5"
-                fill="#94a3b8"
-                textAnchor="middle"
-              >
-                {label}
-              </text>
-            ))}
-          </svg>
+                <polyline
+                  className="imdx-chart-line"
+                  fill="none"
+                  stroke="#002456"
+                  strokeWidth="2"
+                  points={series.spending.map((p) => `${p.x},${p.y}`).join(' ')}
+                />
+                {series.spending.map((p, idx) => (
+                  <circle
+                    key={`s-${idx}`}
+                    cx={p.x}
+                    cy={p.y}
+                    r="3"
+                    fill="#002456"
+                    style={{ ['--stagger-i' as string]: idx }}
+                    className="imdx-chart-dot"
+                  />
+                ))}
+              </g>
+
+              {series.labels.map((label, idx) => (
+                <text
+                  key={`${label}-${idx}`}
+                  x={12 + Math.round(idx * series.stepX)}
+                  y="90"
+                  fontSize="9.5"
+                  fill="#94a3b8"
+                  textAnchor="middle"
+                >
+                  {label}
+                </text>
+              ))}
+            </svg>
+          )}
         </div>
       </div>
 
@@ -1461,7 +1504,14 @@ export function BillingPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-[#f1f5f9] text-[12.5px] text-[#475569]">
-              {visibleTransactions.map((tx, idx) => (
+              {visibleTransactions.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-[#64748b]">
+                    No financial transactions recorded yet.
+                  </td>
+                </tr>
+              ) : (
+                visibleTransactions.map((tx, idx) => (
                 <tr
                   key={tx.id}
                   style={{ ['--stagger-i' as string]: idx }}
@@ -1500,7 +1550,8 @@ export function BillingPage({
                     </button>
                   </td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>
@@ -1726,16 +1777,12 @@ export function SettingsPage({
   onSaveSettings,
   onResetDemoData,
 }: SettingsPageProps) {
-  const [legalName, setLegalName] = useState(
-    onboardingState.organization.legalName || 'ABC Mobility Technologies Pvt. Ltd.',
-  );
+  const [legalName, setLegalName] = useState(onboardingState.organization.legalName || '');
   const [repName, setRepName] = useState(
-    onboardingState.representative.name || onboardingState.registration.fullName || 'Aarav Mehta',
+    onboardingState.representative.name || onboardingState.registration.fullName || '',
   );
   const [workEmail, setWorkEmail] = useState(
-    onboardingState.representative.email ||
-      onboardingState.registration.workEmail ||
-      'aarav@abcmobility.in',
+    onboardingState.representative.email || onboardingState.registration.workEmail || '',
   );
   const [invoiceEmail, setInvoiceEmail] = useState(preferences.invoiceEmail);
   const [payoutMethod, setPayoutMethod] = useState(preferences.payoutMethod);
@@ -1885,7 +1932,7 @@ export function SettingsPage({
               onClick={onResetDemoData}
               className="h-[36px] px-4 rounded-full border border-[#cbd5e1] bg-white hover:bg-[#f8fafc] text-[12.5px] font-semibold text-[#475569] cursor-pointer"
             >
-              Reset Demo Data
+              Clear Local Cache
             </button>
             <button
               type="button"
@@ -1936,21 +1983,7 @@ function OrgTeamCard() {
     e.preventDefault();
     if (!inviteName.trim() || !inviteEmail.trim()) return;
     if (!isPlatformConfigured() || !loadUserSession()?.token) {
-      setUsers((prev) => [
-        {
-          id: `usr-${Date.now()}`,
-          name: inviteName.trim(),
-          email: inviteEmail.trim(),
-          designation,
-          role: 'MANAGER',
-          status: 'INVITED',
-          signatoryVerified: false,
-        },
-        ...prev,
-      ]);
-      setTeamNote(`Invited ${inviteEmail.trim()}.`);
-      setInviteName('');
-      setInviteEmail('');
+      setTeamNote('Sign in with a live Cygnus workspace session to invite organization members.');
       return;
     }
     void cygnusApi
@@ -1979,7 +2012,7 @@ function OrgTeamCard() {
           type="button"
           onClick={() => {
             if (!isPlatformConfigured() || !loadUserSession()?.token) {
-              setApiKeyResult(`imdx_live_${Date.now().toString(36)}`);
+              setTeamNote('Sign in with a live Cygnus workspace session to reset the API key.');
               return;
             }
             void cygnusApi

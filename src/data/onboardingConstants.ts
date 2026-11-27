@@ -5,7 +5,7 @@ import type {
   PolicyItem,
 } from '../types/onboarding';
 
-export const APPLICATION_NUMBER = 'ZW4C-9CDM-UC84';
+export const APPLICATION_NUMBER = '';
 
 export const COUNTRY_CODES = [
   { label: 'IN +91', value: '+91' },

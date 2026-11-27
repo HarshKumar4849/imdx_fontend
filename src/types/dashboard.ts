@@ -43,7 +43,7 @@ export interface CatalogOffer {
   category: string;
   version: string;
   tags: string;
-  qualityScore: number;
+  qualityScore?: number;
   title: string;
   protocol: CatalogProtocol;
   description: string;

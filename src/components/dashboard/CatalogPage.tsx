@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import searchIcon from '../../assets/search-icon.svg';
-import { CATALOG_OFFERS } from '../../data/dashboardData';
 import type {
   CatalogOffer,
   CatalogProtocol,
@@ -34,14 +33,14 @@ const PROTOCOL_FILTERS: Array<'All' | CatalogProtocol> = [
 export function CatalogPage({
   searchQuery,
   onSearchChange,
-  offers,
+  offers = [],
   subscriptions,
   consentRequests,
   onRequestConsent,
   onSubscribeOffer,
   onUnsubscribeOffer,
 }: CatalogPageProps) {
-  const catalogOffers = offers !== undefined ? offers : CATALOG_OFFERS;
+  const catalogOffers = offers;
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
   const [protocolFilter, setProtocolFilter] = useState<'All' | CatalogProtocol>('All');
 
@@ -116,7 +115,9 @@ export function CatalogPage({
         {matchingOffers.length === 0 ? (
           <div className="imdx-card rounded-[12px] p-10 text-center space-y-2">
             <p className="text-[14.5px] font-medium text-[#475569]">
-              No datasets match your current filter.
+              {catalogOffers.length === 0
+                ? 'No datasets published in the catalog yet.'
+                : 'No datasets match your current filter.'}
             </p>
             {(protocolFilter !== 'All' || searchQuery.trim()) && (
               <button

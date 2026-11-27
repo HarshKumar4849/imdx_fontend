@@ -171,9 +171,15 @@ export function OfferSubscriptionDetailView({
         <div className="text-right shrink-0">
           <p className="text-[11px] text-[#64748b]">Data quality</p>
           <p className="text-[22px] font-bold text-[#059669] leading-tight">
-            {offer.qualityScore} %
+            {offer.qualityScore !== undefined ? `${offer.qualityScore} %` : '—'}
           </p>
-          <p className="text-[11px] font-semibold text-[#059669]">Excellent</p>
+          <p className="text-[11px] font-semibold text-[#059669]">
+            {offer.qualityScore !== undefined
+              ? offer.qualityScore >= 90
+                ? 'Excellent'
+                : 'Validated'
+              : offer.updateFrequency}
+          </p>
         </div>
       </div>
 
@@ -376,28 +382,28 @@ export function OfferSubscriptionDetailView({
 
               <div className="space-y-2.5 text-[12.5px]">
                 <div>
-                  <p className="text-[11px] text-[#64748b]">Contract Price</p>
-                  <p className="font-semibold text-[#102529]">₹ 599.00 INR /30 days</p>
+                  <p className="text-[11px] text-[#64748b]">Contract Pricing</p>
+                  <p className="font-semibold text-[#102529]">Per selected plan below</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-[#64748b]">Billing Cycle</p>
-                  <p className="font-semibold text-[#102529]">30 days</p>
+                  <p className="text-[11px] text-[#64748b]">Delivery Cadence</p>
+                  <p className="font-semibold text-[#102529]">{offer.updateFrequency}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-[#64748b]">Usage cap</p>
-                  <p className="font-semibold text-[#102529]">Unlimited</p>
+                  <p className="text-[11px] text-[#64748b]">Protocol Standard</p>
+                  <p className="font-semibold text-[#102529]">{offer.protocol}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-[#64748b]">Allowed purpose</p>
-                  <p className="font-semibold text-[#102529]">Planning &amp; analytics</p>
+                  <p className="text-[11px] text-[#64748b]">Allowed Purposes</p>
+                  <p className="font-semibold text-[#102529]">{offer.tags}</p>
                 </div>
                 <div>
-                  <p className="text-[11px] text-[#64748b]">Classification</p>
-                  <p className="font-semibold text-[#102529]">Public</p>
+                  <p className="text-[11px] text-[#64748b]">Coverage</p>
+                  <p className="font-semibold text-[#102529]">{offer.coverage}</p>
                 </div>
                 <div>
                   <p className="text-[11px] text-[#64748b]">Terms version</p>
-                  <p className="font-semibold text-[#102529]">v2</p>
+                  <p className="font-semibold text-[#102529]">{offer.version}</p>
                 </div>
               </div>
 
@@ -490,26 +496,30 @@ export function OfferSubscriptionDetailView({
           className="imdx-stage-enter imdx-card rounded-[12px] p-4 sm:p-5 space-y-3"
         >
           <h3 className="text-[14px] font-semibold text-[#102529]">
-            Validation &amp; Quality Breakdown ({offer.qualityScore}%)
+            Validation &amp; Quality Summary
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              { label: 'Completeness', pct: `${offer.qualityScore}%` },
-              { label: 'Freshness', pct: '94%' },
-              { label: 'Schema validity', pct: '98%' },
-              { label: 'Consistency', pct: '92%' },
-            ].map((row) => (
-              <div key={row.label} className="space-y-1">
-                <div className="flex justify-between text-[12.5px]">
-                  <span className="text-[#475569]">{row.label}</span>
-                  <span className="font-semibold text-[#102529]">{row.pct}</span>
-                </div>
-                <div className="h-[6px] rounded-full bg-[#e2e8f0] overflow-hidden">
-                  <div className="imdx-bar-animate h-full rounded-full bg-[#22b59b]" style={{ width: row.pct }} />
-                </div>
+          {offer.qualityScore !== undefined ? (
+            <div className="space-y-2">
+              <div className="flex justify-between text-[12.5px]">
+                <span className="text-[#475569]">Reported Dataset Quality Score</span>
+                <span className="font-semibold text-[#102529]">{offer.qualityScore}%</span>
               </div>
-            ))}
-          </div>
+              <div className="h-[6px] rounded-full bg-[#e2e8f0] overflow-hidden">
+                <div
+                  className="imdx-bar-animate h-full rounded-full bg-[#22b59b]"
+                  style={{ width: `${offer.qualityScore}%` }}
+                />
+              </div>
+              <p className="text-[12px] text-[#64748b] pt-1">
+                Protocol: {offer.protocol} · Cadence: {offer.updateFrequency} · Licence: {offer.licence}
+              </p>
+            </div>
+          ) : (
+            <p className="text-[12.5px] text-[#64748b]">
+              No validation telemetry reported yet for this catalog offer ({offer.protocol} ·{' '}
+              {offer.updateFrequency}).
+            </p>
+          )}
         </div>
       )}
 

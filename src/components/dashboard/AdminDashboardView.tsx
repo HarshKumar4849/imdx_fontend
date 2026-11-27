@@ -128,36 +128,6 @@ const DOC_KEYS: Array<{ key: DocumentSlotKey; label: string }> = [
   { key: 'authorizationLetter', label: 'Authorization Letter' },
 ];
 
-const INITIAL_VERIFICATIONS: VerificationRecord[] = [
-  {
-    id: 'VER-0012',
-    type: 'Event Hash',
-    requestedBy: 'Ananya Mehta',
-    timestamp: '25 Nov 2026, 11:45',
-    recordsChecked: 1,
-    result: 'Verified',
-    summary: 'Hash chain validated for event node #12.',
-  },
-  {
-    id: 'VER-0011',
-    type: 'Date Range',
-    requestedBy: 'Rahul Verma',
-    timestamp: '24 Nov 2026, 16:12',
-    recordsChecked: 2,
-    result: 'Verified',
-    summary: 'All 2 ledger entries within selected window verified cleanly.',
-  },
-  {
-    id: 'VER-0010',
-    type: 'Event Hash',
-    requestedBy: 'Priya Shah',
-    timestamp: '23 Nov 2026, 09:30',
-    recordsChecked: 1,
-    result: 'Failed',
-    summary: 'Test mismatch recorded during sandbox tamper drill.',
-  },
-];
-
 export function AdminDashboardView({
   activeNav,
   onNavigate,
@@ -229,7 +199,7 @@ export function AdminDashboardView({
   // Admin settings & governance live state
   const [autoProvision, setAutoProvision] = useState(true);
   const [auditRetentionDays, setAuditRetentionDays] = useState('365');
-  const [adminEmail, setAdminEmail] = useState('governance@imdx.org');
+  const [adminEmail, setAdminEmail] = useState(() => loadAdminSession()?.email || '');
   const [settingsSaved, setSettingsSaved] = useState(false);
 
   const [capacityState, setCapacityState] = useState<CygnusCapacity | null>(null);
@@ -243,8 +213,7 @@ export function AdminDashboardView({
   const [livePolicies, setLivePolicies] = useState<CygnusPolicyDoc[] | null>(null);
   const [livePurposes, setLivePurposes] = useState<CygnusPurpose[] | null>(null);
   const [liveAuditEvents, setLiveAuditEvents] = useState<CygnusAuditEvent[] | null>(null);
-  const [verificationHistory, setVerificationHistory] =
-    useState<VerificationRecord[]>(INITIAL_VERIFICATIONS);
+  const [verificationHistory, setVerificationHistory] = useState<VerificationRecord[]>([]);
 
   const isLiveAdmin = isPlatformConfigured() && Boolean(loadAdminSession()?.token);
 
@@ -317,7 +286,7 @@ export function AdminDashboardView({
             ...(actRes.status === 'fulfilled' ? actRes.value : []),
             ...(inactRes.status === 'fulfilled' ? inactRes.value : []),
           ];
-          if (combined.length > 0) setLivePurposes(combined);
+          setLivePurposes(combined);
         },
       );
     }
@@ -354,11 +323,11 @@ export function AdminDashboardView({
     };
   }, [activeNav, appStatusFilter, auditLimit, isLiveAdmin]);
 
-  const orgName = onboardingState.organization.legalName || 'ABC Mobility Technologies Pvt. Ltd.';
+  const orgName = onboardingState.organization.legalName || '—';
   const repEmail =
     onboardingState.representative.email ||
     onboardingState.registration.workEmail ||
-    'aarav@abcmobility.in';
+    '—';
   const acceptedPoliciesCount = POLICIES.filter(
     (p) => onboardingState.acceptedPolicies[p.id],
   ).length;
@@ -624,20 +593,20 @@ export function AdminDashboardView({
         name: p.name,
         role: p.role === 'PROV' ? 'Provider' : 'Consumer',
         status: p.active ? ('Active' as const) : ('Suspended' as const),
-        created: p.createdAt ? p.createdAt.slice(0, 10) : '2026-11-15',
+        created: p.createdAt ? p.createdAt.slice(0, 10) : '—',
       }))
-    : participants.map((p, idx) => ({
+    : participants.map((p) => ({
         id: p.id,
         did: p.did,
-        bpn: `BPNL0000000${idx + 1}`,
+        bpn: '—',
         name: p.name,
         role: p.role,
         status: p.status,
-        created: `2026-11-${String(20 - idx).padStart(2, '0')}`,
+        created: '—',
       }));
 
   const mergedPolicies = livePolicies
-    ? livePolicies.map((doc, idx) => ({
+    ? livePolicies.map((doc) => ({
         id: `${doc.slug}-v${doc.version}`,
         slug: doc.slug,
         title: doc.title,
@@ -645,13 +614,13 @@ export function AdminDashboardView({
         status: doc.status === 'APPROVED' ? 'Published' : 'Draft',
         enforced: doc.status === 'APPROVED',
         mandatory: doc.required ?? true,
-        updatedAt: doc.createdAt ? doc.createdAt.slice(0, 10) : '2026-11-12',
-        acceptedCount: doc.acceptances ?? Math.max(1, mergedParticipants.length),
+        updatedAt: doc.createdAt ? doc.createdAt.slice(0, 10) : '—',
+        acceptedCount: doc.acceptances ?? 0,
         totalCount: Math.max(mergedParticipants.length, doc.acceptances ?? 1),
-        hash: doc.sha256?.slice(0, 12) || `h${idx}a9f8c2b10`,
+        hash: doc.sha256?.slice(0, 12) || '—',
         body: doc.body || 'Mandatory governance compliance policy across IMDX participants.',
       }))
-    : policies.map((pol, idx) => ({
+    : policies.map((pol) => ({
         id: pol.id,
         slug: pol.id,
         title: pol.title,
@@ -660,9 +629,9 @@ export function AdminDashboardView({
         enforced: pol.enforced,
         mandatory: pol.mandatory,
         updatedAt: pol.updatedAt,
-        acceptedCount: pol.enforced ? Math.max(1, participants.length) : Math.max(0, participants.length - 1),
+        acceptedCount: 0,
         totalCount: Math.max(1, participants.length),
-        hash: `46637${idx}f9c897`,
+        hash: '—',
         body: 'Standard IMDX participation governance agreement and SLA obligations.',
       }));
 
@@ -696,21 +665,23 @@ export function AdminDashboardView({
           ? ('Warning' as const)
           : ('Success' as const),
       }))
-    : auditLogs.map((l, idx) => ({
+    : auditLogs.map((l) => ({
         id: l.id,
         timestamp: l.timestamp,
         eventType: l.action,
         participantDid: l.actor,
-        eventHash: `17378784${idx}986c8c899`,
+        eventHash: '—',
         payload: `${l.target} (${l.outcome})`,
         outcome: l.outcome,
       }));
 
   const pendingApprovalsCount = adminStats
     ? (adminStats.applicationsWaiting ?? 0)
-    : applicationStatus === 'Under Review'
-      ? 1
-      : 0;
+    : isLiveAdmin
+      ? 0
+      : applicationStatus === 'Under Review'
+        ? 1
+        : 0;
 
   const meta = SECTION_META[activeNav];
 
@@ -1039,7 +1010,9 @@ export function AdminDashboardView({
                   },
                   {
                     label: 'Workspaces',
-                    status: `${tenants.length || mergedParticipants.length} Live`,
+                    status: isLiveAdmin
+                      ? `${tenants.length} Live`
+                      : `${tenants.length || mergedParticipants.length} Live`,
                   },
                 ].map((row) => (
                   <div key={row.label} className="py-2 flex items-center justify-between">
@@ -1076,37 +1049,51 @@ export function AdminDashboardView({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#f1f5f9] text-[12.5px] text-[#475569]">
-                    {isLiveAdmin && liveApps && liveApps.length > 0 ? (
-                      liveApps.slice(0, 4).map((app) => (
-                        <tr key={app.id} className="hover:bg-[#f8fafc]">
-                          <td className="py-2.5 px-4 font-semibold text-[#102529]">
-                            {app.orgName || '—'}
-                          </td>
-                          <td className="py-2.5 px-3 font-mono text-[11.5px] text-[#002456]">
-                            {app.number}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            {app.submittedAt ? app.submittedAt.slice(0, 10) : 'Draft'}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <StatusBadge status={app.status === 'ACTIVE' ? 'Approved' : app.status === 'SUBMITTED' ? 'Under Review' : app.status} />
-                          </td>
-                          <td className="py-2.5 px-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => onNavigate('applications')}
-                              className="font-semibold text-[#002456] hover:underline cursor-pointer"
-                            >
-                              View &rarr;
-                            </button>
+                    {isLiveAdmin ? (
+                      liveApps === null ? (
+                        <tr>
+                          <td colSpan={5} className="py-6 text-center text-[#64748b]">
+                            Loading applications...
                           </td>
                         </tr>
-                      ))
+                      ) : liveApps.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-6 text-center text-[#64748b]">
+                            No applications submitted yet.
+                          </td>
+                        </tr>
+                      ) : (
+                        liveApps.slice(0, 4).map((app) => (
+                          <tr key={app.id} className="hover:bg-[#f8fafc]">
+                            <td className="py-2.5 px-4 font-semibold text-[#102529]">
+                              {app.orgName || '—'}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-[11.5px] text-[#002456]">
+                              {app.number}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              {app.submittedAt ? app.submittedAt.slice(0, 10) : 'Draft'}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <StatusBadge status={app.status === 'ACTIVE' ? 'Approved' : app.status === 'SUBMITTED' ? 'Under Review' : app.status} />
+                            </td>
+                            <td className="py-2.5 px-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => onNavigate('applications')}
+                                className="font-semibold text-[#002456] hover:underline cursor-pointer"
+                              >
+                                View &rarr;
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )
                     ) : (
                       <tr className="hover:bg-[#f8fafc]">
                         <td className="py-2.5 px-4 font-semibold text-[#102529]">{orgName}</td>
                         <td className="py-2.5 px-3 font-mono text-[11.5px] text-[#002456]">
-                          {onboardingState.applicationNumber}
+                          {onboardingState.applicationNumber || 'DRAFT'}
                         </td>
                         <td className="py-2.5 px-3">Today</td>
                         <td className="py-2.5 px-3">
@@ -1442,7 +1429,7 @@ export function AdminDashboardView({
                                   );
                               } else {
                                 setAdminActionNote(
-                                  `Workspace delete requested for ${ws.namespace} (demo mode).`,
+                                  `Sign in with a live admin session to delete workspace ${ws.namespace}.`,
                                 );
                               }
                             }}
@@ -1615,8 +1602,14 @@ export function AdminDashboardView({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#f1f5f9] text-[13px] text-[#475569]">
-                    {sortedLive ? (
-                      sortedLive.length === 0 ? (
+                    {isLiveAdmin ? (
+                      sortedLive === null ? (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-[#64748b]">
+                            Loading applications...
+                          </td>
+                        </tr>
+                      ) : sortedLive.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="py-8 text-center text-[#64748b]">
                             No applications found for this filter.
@@ -1701,7 +1694,7 @@ export function AdminDashboardView({
                     ) : (
                       <tr className="hover:bg-[#f8fafc]">
                         <td className="py-3 px-4 font-mono text-[12px] font-semibold text-[#002456] whitespace-nowrap">
-                          {onboardingState.applicationNumber}
+                          {onboardingState.applicationNumber || 'DRAFT'}
                         </td>
                         <td className="py-3 px-3.5 font-semibold text-[#102529]">{orgName}</td>
                         <td className="py-3 px-3.5 whitespace-nowrap">Today</td>
@@ -2499,7 +2492,7 @@ export function AdminDashboardView({
                   <p className="mt-0.5 font-semibold text-[#102529]">
                     {inspectDetail
                       ? `${inspectDetail.organization?.pan || '—'} / ${inspectDetail.organization?.gstin || '—'}`
-                      : `${onboardingState.organization.pan || 'ABCDE1234G'} / ${onboardingState.organization.gstin || '29ABCDE1234F1Z5'}`}
+                      : `${onboardingState.organization.pan || '—'} / ${onboardingState.organization.gstin || '—'}`}
                   </p>
                 </div>
                 <div>
@@ -2507,7 +2500,7 @@ export function AdminDashboardView({
                   <p className="mt-0.5 font-semibold text-[#102529]">
                     {inspectDetail
                       ? `${inspectDetail.representative?.name || inspectDetail.contactName || '—'} (${inspectDetail.representative?.email || inspectDetail.email})`
-                      : `${onboardingState.representative.name || 'Sakshi Shinde'} (${repEmail})`}
+                      : `${onboardingState.representative.name || '—'} (${repEmail})`}
                   </p>
                 </div>
                 <div className="sm:col-span-2">

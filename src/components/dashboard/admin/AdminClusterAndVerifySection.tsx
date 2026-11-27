@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { INITIAL_CAPACITY_CLUSTERS } from '../../../data/adminData';
 import {
   cygnusApi,
   isPlatformConfigured,
@@ -28,41 +27,6 @@ interface AdminUserAccount {
   status: 'Active' | 'Invited';
   lastLogin: string;
 }
-
-const INITIAL_ADMIN_USERS: AdminUserAccount[] = [
-  {
-    id: 'adm-1',
-    name: 'Ananya Mehta',
-    email: 'ananya.mehta@imdx.in',
-    role: 'Super Admin',
-    status: 'Active',
-    lastLogin: 'Today, 09:42',
-  },
-  {
-    id: 'adm-2',
-    name: 'Rahul Verma',
-    email: 'rahul.verma@imdx.in',
-    role: 'Compliance Admin',
-    status: 'Active',
-    lastLogin: 'Yesterday, 17:18',
-  },
-  {
-    id: 'adm-3',
-    name: 'Priya Shah',
-    email: 'priya.shah@imdx.in',
-    role: 'Platform Admin',
-    status: 'Active',
-    lastLogin: '24 Nov, 16:05',
-  },
-  {
-    id: 'adm-4',
-    name: 'Vikram Rao',
-    email: 'vikram.rao@imdx.in',
-    role: 'Operations Admin',
-    status: 'Invited',
-    lastLogin: 'Never',
-  },
-];
 
 type SettingsSectionKey =
   | 'profile'
@@ -141,7 +105,22 @@ export function AdminClusterAndVerifySection({
   const [autoRefreshHealth, setAutoRefreshHealth] = useState(true);
   const [breachTitle, setBreachTitle] = useState('');
   const [settingsSection, setSettingsSection] = useState<SettingsSectionKey>('admin-users');
-  const [adminUsers, setAdminUsers] = useState<AdminUserAccount[]>(INITIAL_ADMIN_USERS);
+  const [invitedAdmins, setInvitedAdmins] = useState<AdminUserAccount[]>([]);
+  const adminUsers: AdminUserAccount[] = [
+    ...(adminEmail
+      ? [
+          {
+            id: 'adm-current',
+            name: adminEmail.split('@')[0] || 'Platform Admin',
+            email: adminEmail,
+            role: 'Platform Admin',
+            status: 'Active' as const,
+            lastLogin: 'Current session',
+          },
+        ]
+      : []),
+    ...invitedAdmins.filter((u) => u.email !== adminEmail),
+  ];
   const [isInviteFormOpen, setIsInviteFormOpen] = useState(false);
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -154,14 +133,18 @@ export function AdminClusterAndVerifySection({
 
   const handleVerifyHash = async (e: React.FormEvent) => {
     e.preventDefault();
-    const targetHash = eventHashInput.trim() || '173787849986c8c899';
+    const targetHash = eventHashInput.trim();
+    if (!targetHash) {
+      setVerifyFeedback('Please enter an event hash to verify.');
+      return;
+    }
     if (isLiveAdmin) {
       try {
         const res = await cygnusApi.verifyLedgerEvent(targetHash);
         const rec: VerificationRecord = {
-          id: `VER-${String(verificationHistory.length + 10).padStart(4, '0')}`,
+          id: `VER-${String(verificationHistory.length + 1).padStart(4, '0')}`,
           type: 'Event Hash',
-          requestedBy: 'Platform Admin',
+          requestedBy: adminEmail || 'Platform Admin',
           timestamp: new Date().toLocaleString(),
           recordsChecked: res.eventsChecked ?? 1,
           result: res.valid ? 'Verified' : 'Failed',
@@ -170,17 +153,17 @@ export function AdminClusterAndVerifySection({
         onAddVerification(rec);
         setVerifyFeedback(rec.summary);
         onAppendAudit('Verified Audit Event Hash', targetHash, res.valid ? 'Success' : 'Warning');
-        return;
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Hash verification failed.';
         setVerifyFeedback(msg);
       }
+      return;
     }
 
     const rec: VerificationRecord = {
-      id: `VER-${String(verificationHistory.length + 10).padStart(4, '0')}`,
+      id: `VER-${String(verificationHistory.length + 1).padStart(4, '0')}`,
       type: 'Event Hash',
-      requestedBy: 'Platform Admin',
+      requestedBy: adminEmail || 'Platform Admin',
       timestamp: new Date().toLocaleString(),
       recordsChecked: 1,
       result: 'Verified',
@@ -199,29 +182,29 @@ export function AdminClusterAndVerifySection({
       try {
         await cygnusApi.verifyAuditRange(fromIso, toIso);
         const rec: VerificationRecord = {
-          id: `VER-${String(verificationHistory.length + 10).padStart(4, '0')}`,
+          id: `VER-${String(verificationHistory.length + 1).padStart(4, '0')}`,
           type: 'Date Range',
-          requestedBy: 'Platform Admin',
+          requestedBy: adminEmail || 'Platform Admin',
           timestamp: new Date().toLocaleString(),
-          recordsChecked: Math.max(2, participants.length),
+          recordsChecked: participants.length,
           result: 'Verified',
           summary: `Merkle audit sequence verified between ${rangeStart} and ${rangeEnd}.`,
         };
         onAddVerification(rec);
         setVerifyFeedback(rec.summary);
         onAppendAudit('Verified Audit Date Range', `${rangeStart} → ${rangeEnd}`);
-        return;
       } catch (err) {
         setVerifyFeedback(err instanceof Error ? err.message : 'Range verification failed.');
       }
+      return;
     }
 
     const rec: VerificationRecord = {
-      id: `VER-${String(verificationHistory.length + 10).padStart(4, '0')}`,
+      id: `VER-${String(verificationHistory.length + 1).padStart(4, '0')}`,
       type: 'Date Range',
-      requestedBy: 'Platform Admin',
+      requestedBy: adminEmail || 'Platform Admin',
       timestamp: new Date().toLocaleString(),
-      recordsChecked: Math.max(2, participants.length),
+      recordsChecked: participants.length,
       result: 'Verified',
       summary: `Verified chronological ledger links for ${rangeStart} through ${rangeEnd}.`,
     };
@@ -377,7 +360,14 @@ export function AdminClusterAndVerifySection({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f1f5f9] text-[13px] text-[#475569]">
-                {verificationHistory.map((item, idx) => (
+                {verificationHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-[#64748b]">
+                      No verification runs recorded yet. Submit an event hash or date range above.
+                    </td>
+                  </tr>
+                ) : (
+                  verificationHistory.map((item, idx) => (
                   <tr
                     key={item.id}
                     style={{ ['--stagger-i' as string]: idx }}
@@ -403,7 +393,8 @@ export function AdminClusterAndVerifySection({
                       </button>
                     </td>
                   </tr>
-                ))}
+                ))
+                )}
               </tbody>
             </table>
           </div>
@@ -420,26 +411,16 @@ export function AdminClusterAndVerifySection({
             name: c.name,
             ok: c.status === 'ok' || c.status === 'healthy',
           }))
-        : [
-            { name: 'Platform API (1 of 1)', ok: true },
-            { name: 'Database (this API)', ok: true },
-            { name: 'Trust registry (1 of 1)', ok: true },
-            { name: 'Shared agent (1 of 1)', ok: true },
-          ];
+        : [];
     const nodeRows =
       clusterHealth && clusterHealth.nodes.length > 0
         ? clusterHealth.nodes.map((n, idx) => ({
             id: `NODE-0${idx + 1}`,
             zone: n.zone || n.name,
-            cpuPct: n.cpuRequestedPercent ?? 38,
+            cpuPct: n.cpuRequestedPercent,
             healthy: n.ready,
           }))
-        : INITIAL_CAPACITY_CLUSTERS.map((node, idx) => ({
-            id: `NODE-0${idx + 1}`,
-            zone: node.clusterName,
-            cpuPct: node.cpuPct,
-            healthy: node.status === 'Healthy',
-          }));
+        : [];
     const workspaceRows =
       tenants.length > 0
         ? tenants.map((t) => ({
@@ -448,12 +429,14 @@ export function AdminClusterAndVerifySection({
             org: t.participantDid,
             healthy: t.status.toUpperCase() === 'LIVE',
           }))
-        : participants.slice(0, 4).map((p) => ({
-            id: p.id,
-            workspace: p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 18),
-            org: p.name,
-            healthy: p.status === 'Active',
-          }));
+        : isLiveAdmin
+          ? []
+          : participants.slice(0, 4).map((p) => ({
+              id: p.id,
+              workspace: p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 18),
+              org: p.name,
+              healthy: p.status === 'Active',
+            }));
 
     return (
       <div className="space-y-4">
@@ -536,19 +519,25 @@ export function AdminClusterAndVerifySection({
                   <StatusBadge status={overallHealthy ? 'Healthy' : 'Degraded'} />
                 </div>
                 <div className="space-y-1.5">
-                  {checkEntries.slice(0, 3).map((chk) => (
-                    <div
-                      key={`${group.key}-${chk.name}`}
-                      className="flex items-center justify-between rounded-[7px] bg-white/85 border border-[#e2e8f0] px-2.5 py-1.5 text-[11.5px]"
-                    >
-                      <span className="text-[#334155] truncate">{chk.name}</span>
-                      <span
-                        className={`font-semibold ${chk.ok ? 'text-[#059669]' : 'text-[#dc2626]'}`}
+                  {checkEntries.length === 0 ? (
+                    <p className="text-[11.5px] text-[#64748b] py-1">
+                      No live check probes reported yet.
+                    </p>
+                  ) : (
+                    checkEntries.slice(0, 3).map((chk) => (
+                      <div
+                        key={`${group.key}-${chk.name}`}
+                        className="flex items-center justify-between rounded-[7px] bg-white/85 border border-[#e2e8f0] px-2.5 py-1.5 text-[11.5px]"
                       >
-                        {chk.ok ? 'OK' : 'ERR'}
-                      </span>
-                    </div>
-                  ))}
+                        <span className="text-[#334155] truncate">{chk.name}</span>
+                        <span
+                          className={`font-semibold ${chk.ok ? 'text-[#059669]' : 'text-[#dc2626]'}`}
+                        >
+                          {chk.ok ? 'OK' : 'ERR'}
+                        </span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             ))}
@@ -578,29 +567,45 @@ export function AdminClusterAndVerifySection({
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f1f5f9] text-[13px] text-[#475569]">
-                {nodeRows.map((node) => (
-                  <tr key={node.id} className="hover:bg-[#f8fafc]">
-                    <td className="py-3 px-4 font-mono text-[12px] font-semibold text-[#102529]">
-                      {node.id}
+                {nodeRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-6 text-center text-[#64748b]">
+                      No cluster node telemetry reported yet.
                     </td>
-                    <td className="py-3 px-3.5 font-mono text-[12px]">{node.zone}</td>
-                    <td className="py-3 px-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-[84px] h-1.5 rounded-full bg-[#e2e8f0] overflow-hidden">
-                          <div
-                            className="h-full bg-[#10b981]"
-                            style={{ width: `${node.cpuPct}%` }}
-                          />
-                        </div>
-                        <span className="text-[12px] font-medium">{node.cpuPct}%</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-3.5">
-                      <StatusBadge status={node.healthy ? 'Healthy' : 'Warning'} />
-                    </td>
-                    <td className="py-3 px-4 text-[12px] text-[#64748b]">1 min ago</td>
                   </tr>
-                ))}
+                ) : (
+                  nodeRows.map((node) => (
+                    <tr key={node.id} className="hover:bg-[#f8fafc]">
+                      <td className="py-3 px-4 font-mono text-[12px] font-semibold text-[#102529]">
+                        {node.id}
+                      </td>
+                      <td className="py-3 px-3.5 font-mono text-[12px]">{node.zone}</td>
+                      <td className="py-3 px-3.5">
+                        {node.cpuPct !== null && node.cpuPct !== undefined ? (
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-[84px] h-1.5 rounded-full bg-[#e2e8f0] overflow-hidden">
+                              <div
+                                className="h-full bg-[#10b981]"
+                                style={{ width: `${node.cpuPct}%` }}
+                              />
+                            </div>
+                            <span className="text-[12px] font-medium">{node.cpuPct}%</span>
+                          </div>
+                        ) : (
+                          <span className="text-[12px] text-[#64748b]">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-3.5">
+                        <StatusBadge status={node.healthy ? 'Healthy' : 'Warning'} />
+                      </td>
+                      <td className="py-3 px-4 text-[12px] text-[#64748b]">
+                        {clusterHealth?.generatedAt
+                          ? new Date(clusterHealth.generatedAt).toLocaleTimeString()
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -652,7 +657,11 @@ export function AdminClusterAndVerifySection({
   }
 
   if (activeNav === 'capacity') {
-    const liveSpaces = capacityState?.live ?? Math.max(1, participants.filter((p) => p.status === 'Active').length);
+    const liveSpaces = capacityState
+      ? capacityState.live
+      : isLiveAdmin
+        ? 0
+        : participants.filter((p) => p.status === 'Active').length;
     const maxSpaces = capacityState?.max ?? (Number(capacityInput) || 4);
     const pctUsed = Math.min(100, Math.round((liveSpaces / Math.max(1, maxSpaces)) * 100));
     const availableSlots = Math.max(0, maxSpaces - liveSpaces);
@@ -666,18 +675,20 @@ export function AdminClusterAndVerifySection({
             participant: t.participantDid,
             namespace: t.namespace,
             status: t.status,
-            resources: t.status.toUpperCase() === 'WAITING' ? 'Pending' : '2 vCPU / 4 GB',
-            created: 'Active cluster',
+            resources: t.mode || '—',
+            created: t.slug || '—',
           }))
-        : participants.slice(0, 4).map((p, idx) => ({
-            id: p.id,
-            workspace: p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 16),
-            participant: p.name,
-            namespace: p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 16),
-            status: p.status === 'Active' ? 'Live' : 'Failed',
-            resources: p.status === 'Active' ? '2 vCPU / 4 GB' : 'Pending',
-            created: `2026-11-${20 - idx}`,
-          }));
+        : isLiveAdmin
+          ? []
+          : participants.slice(0, 4).map((p) => ({
+              id: p.id,
+              workspace: p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 16),
+              participant: p.name,
+              namespace: p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 16),
+              status: p.status === 'Active' ? 'Live' : 'Failed',
+              resources: p.deployment || '—',
+              created: '—',
+            }));
 
     return (
       <div className="space-y-4">
@@ -1044,7 +1055,7 @@ export function AdminClusterAndVerifySection({
                 onSubmit={(e) => {
                   e.preventDefault();
                   if (!inviteEmail.trim()) return;
-                  setAdminUsers((prev) => [
+                  setInvitedAdmins((prev) => [
                     ...prev,
                     {
                       id: `adm-${Date.now()}`,
@@ -1171,15 +1182,17 @@ export function AdminClusterAndVerifySection({
             <div className="imdx-subbox rounded-[10px] p-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-[13px]">
               <div>
                 <p className="text-[#64748b]">Name</p>
-                <p className="mt-0.5 font-semibold text-[#102529]">Ananya Mehta</p>
+                <p className="mt-0.5 font-semibold text-[#102529]">
+                  {adminEmail ? adminEmail.split('@')[0] : 'Platform Administrator'}
+                </p>
               </div>
               <div>
                 <p className="text-[#64748b]">Role</p>
-                <p className="mt-0.5 font-semibold text-[#102529]">Super Admin · Governance Desk</p>
+                <p className="mt-0.5 font-semibold text-[#102529]">Platform Admin · Governance Desk</p>
               </div>
               <div>
                 <p className="text-[#64748b]">Governance Contact</p>
-                <p className="mt-0.5 font-semibold text-[#102529]">{adminEmail}</p>
+                <p className="mt-0.5 font-semibold text-[#102529]">{adminEmail || '—'}</p>
               </div>
               <div>
                 <p className="text-[#64748b]">Session Security</p>

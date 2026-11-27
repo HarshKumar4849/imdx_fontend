@@ -1,20 +1,3 @@
-import {
-  INITIAL_ADMIN_PARTICIPANTS,
-  INITIAL_ADMIN_POLICIES,
-  INITIAL_AUDIT_LOGS,
-  INITIAL_DATA_PURPOSES,
-} from '../data/adminData';
-import {
-  CATALOG_OFFERS,
-  INITIAL_ACCESS_REQUESTS,
-  INITIAL_BILLING_TRANSACTIONS,
-  INITIAL_CONSENT_REQUESTS,
-  INITIAL_MY_DATASETS,
-  INITIAL_NOTIFICATIONS,
-  INITIAL_SUBSCRIPTIONS,
-  INITIAL_TRANSFERS,
-  INITIAL_WORKSPACE_PREFERENCES,
-} from '../data/dashboardData';
 import { INITIAL_ONBOARDING_STATE } from '../data/onboardingConstants';
 import type {
   AccessRequestItem,
@@ -63,7 +46,8 @@ import {
   type CygnusTransfer,
 } from './cygnusApi';
 
-const STORAGE_KEY = 'imdx_portal_store_v1';
+const STORAGE_KEY = 'imdx_portal_store_v2';
+const LEGACY_STORAGE_KEY = 'imdx_portal_store_v1';
 
 export {
   AGENT_BASE,
@@ -90,20 +74,26 @@ export function isBackendConfigured(): boolean {
 export function createInitialStore(): ImdxAppStore {
   return structuredClone({
     onboarding: INITIAL_ONBOARDING_STATE,
-    datasets: INITIAL_MY_DATASETS,
-    subscriptions: INITIAL_SUBSCRIPTIONS,
-    consentRequests: INITIAL_CONSENT_REQUESTS,
-    accessRequests: INITIAL_ACCESS_REQUESTS,
-    transfers: INITIAL_TRANSFERS,
-    billingTransactions: INITIAL_BILLING_TRANSACTIONS,
-    notifications: INITIAL_NOTIFICATIONS,
-    preferences: INITIAL_WORKSPACE_PREFERENCES,
+    datasets: [],
+    subscriptions: [],
+    consentRequests: [],
+    accessRequests: [],
+    transfers: [],
+    billingTransactions: [],
+    notifications: [],
+    preferences: {
+      consentAutoApprove: false,
+      emailAlerts: true,
+      invoiceEmail: '',
+      payoutMethod: '',
+      billingCycle: 'Monthly',
+    },
     applicationStatus: 'Under Review' as const,
     reviewNote: '',
-    participants: INITIAL_ADMIN_PARTICIPANTS,
-    policies: INITIAL_ADMIN_POLICIES,
-    auditLogs: INITIAL_AUDIT_LOGS,
-    purposes: INITIAL_DATA_PURPOSES,
+    participants: [],
+    policies: [],
+    auditLogs: [],
+    purposes: [],
   });
 }
 
@@ -111,6 +101,7 @@ export function loadLocalStore(): ImdxAppStore {
   const defaults = createInitialStore();
   if (typeof window === 'undefined') return defaults;
   try {
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaults;
     const parsed = JSON.parse(raw) as Partial<ImdxAppStore>;
@@ -183,15 +174,15 @@ function mapCygnusDataset(ds: CygnusDataset): MyDatasetItem {
     id: ds.id,
     name: ds.name,
     category: ds.category || 'Mobility',
-    version: typeof meta.version === 'string' ? meta.version : 'v1.0',
-    coverage: typeof meta.coverage === 'string' ? meta.coverage : 'India',
+    version: typeof meta.version === 'string' && meta.version.trim() ? meta.version.trim() : 'v1.0',
+    coverage: typeof meta.coverage === 'string' && meta.coverage.trim() ? meta.coverage.trim() : '—',
     updateFrequency:
       ds.deliveryType === 'REALTIME'
         ? 'Real-time'
-        : typeof meta.updateFrequency === 'string'
-          ? meta.updateFrequency
+        : typeof meta.updateFrequency === 'string' && meta.updateFrequency.trim()
+          ? meta.updateFrequency.trim()
           : 'Daily',
-    quality: typeof meta.quality === 'string' ? meta.quality : '94%',
+    quality: typeof meta.quality === 'string' && meta.quality.trim() ? meta.quality.trim() : '—',
     status: mapDatasetStatus(ds.status),
   };
 }
@@ -306,8 +297,7 @@ export function mapCygnusCatalogToOffers(items: CygnusCatalogDataset[]): Catalog
       version: `v${item.termsVersion ?? 1}.0`,
       tags: Array.isArray(item.allowedPurposes)
         ? item.allowedPurposes.join(', ')
-        : item.allowedPurposes || 'Mobility, Real-time',
-      qualityScore: 95,
+        : item.allowedPurposes || '—',
       title: item.name,
       protocol: fallbackProtocol,
       description: item.description || 'Catalog dataset hosted on Cygnus EDC.',
@@ -317,7 +307,7 @@ export function mapCygnusCatalogToOffers(items: CygnusCatalogDataset[]): Catalog
         typeof item.terms === 'object' && item.terms?.governingLaw
           ? `${item.terms.governingLaw} · ODRL`
           : 'IMDX Standard Contract',
-      coverage: 'India',
+      coverage: '—',
       updateFrequency: item.deliveryType === 'REALTIME' ? 'Real-time' : 'Batch',
       endpointUrl: `${PLATFORM_BASE || ''}/api/v1/catalog/datasets/${item.id}`,
       fields: [],
@@ -540,23 +530,43 @@ export const imdxApi = {
   },
 
   // ── Live Workspace Sync (Cygnus Agent) ────────────────────────
-  async syncWorkspace(): Promise<Partial<ImdxAppStore> & { liveCatalog?: CatalogOffer[] }> {
+  async syncWorkspace(): Promise<
+    Partial<ImdxAppStore> & {
+      liveCatalog?: CatalogOffer[];
+      orgProfile?: { legalName?: string; repName?: string; workEmail?: string };
+    }
+  > {
     const session = loadUserSession();
     if (!isAgentConfigured() || !session?.token) return {};
 
-    const [datasetsRes, catalogRes, subsRes, transfersRes, consentsRes, inboundRes, ordersRes, invoicesRes] =
-      await Promise.allSettled([
-        cygnusApi.listDatasets(),
-        cygnusApi.searchCatalog(),
-        cygnusApi.listSubscriptions(),
-        cygnusApi.listTransfers(),
-        cygnusApi.listConsentRequests(session.did),
-        cygnusApi.listInboundConsents(),
-        cygnusApi.listOrders(),
-        cygnusApi.listInvoices(session.did),
-      ]);
+    const [
+      datasetsRes,
+      catalogRes,
+      subsRes,
+      transfersRes,
+      consentsRes,
+      inboundRes,
+      ordersRes,
+      invoicesRes,
+      participantRes,
+      orgUserRes,
+    ] = await Promise.allSettled([
+      cygnusApi.listDatasets(),
+      cygnusApi.searchCatalog(),
+      cygnusApi.listSubscriptions(),
+      cygnusApi.listTransfers(),
+      cygnusApi.listConsentRequests(session.did),
+      cygnusApi.listInboundConsents(),
+      cygnusApi.listOrders(),
+      cygnusApi.listInvoices(session.did),
+      cygnusApi.getParticipantMe(),
+      cygnusApi.getOrgUserMe(),
+    ]);
 
-    const patch: Partial<ImdxAppStore> & { liveCatalog?: CatalogOffer[] } = {};
+    const patch: Partial<ImdxAppStore> & {
+      liveCatalog?: CatalogOffer[];
+      orgProfile?: { legalName?: string; repName?: string; workEmail?: string };
+    } = {};
     if (datasetsRes.status === 'fulfilled') patch.datasets = datasetsRes.value.map(mapCygnusDataset);
     if (subsRes.status === 'fulfilled') patch.subscriptions = subsRes.value.map(mapCygnusSubscription);
     if (transfersRes.status === 'fulfilled') patch.transfers = transfersRes.value.map(mapCygnusTransfer);
@@ -575,22 +585,35 @@ export const imdxApi = {
     if (catalogRes.status === 'fulfilled') {
       patch.liveCatalog = mapCygnusCatalogToOffers(catalogRes.value);
     }
+    if (participantRes.status === 'fulfilled' || orgUserRes.status === 'fulfilled') {
+      patch.orgProfile = {
+        legalName: participantRes.status === 'fulfilled' ? participantRes.value.name : undefined,
+        repName: orgUserRes.status === 'fulfilled' ? orgUserRes.value.name : undefined,
+        workEmail:
+          orgUserRes.status === 'fulfilled'
+            ? orgUserRes.value.email
+            : participantRes.status === 'fulfilled'
+              ? (participantRes.value.contactEmail ?? undefined)
+              : undefined,
+      };
+    }
     return patch;
   },
 
   // ── Live Admin Sync (Cygnus Platform) ─────────────────────────
-  async syncAdmin(): Promise<Partial<ImdxAppStore>> {
+  async syncAdmin(): Promise<Partial<ImdxAppStore> & { applicationsWaiting?: number }> {
     const admin = loadAdminSession();
     if (!isPlatformConfigured() || !admin?.token) return {};
 
-    const [participantsRes, policiesRes, auditRes, purposesRes] = await Promise.allSettled([
+    const [participantsRes, policiesRes, auditRes, purposesRes, statsRes] = await Promise.allSettled([
       cygnusApi.listParticipants(),
       cygnusApi.listAdminPolicies(),
       cygnusApi.listAuditEvents(50),
       cygnusApi.listAdminPurposes(true),
+      cygnusApi.getAdminStats(),
     ]);
 
-    const patch: Partial<ImdxAppStore> = {};
+    const patch: Partial<ImdxAppStore> & { applicationsWaiting?: number } = {};
     if (participantsRes.status === 'fulfilled') {
       patch.participants = participantsRes.value.map<AdminParticipant>((p) => ({
         id: p.did,
@@ -631,6 +654,9 @@ export const imdxApi = {
         active: p.active ?? true,
       }));
     }
+    if (statsRes.status === 'fulfilled') {
+      patch.applicationsWaiting = statsRes.value.applicationsWaiting ?? 0;
+    }
     return patch;
   },
 
@@ -640,6 +666,10 @@ export const imdxApi = {
     endpointUrl?: string,
   ): Promise<MyDatasetItem> {
     if (!isAgentConfigured() || !loadUserSession()?.token) return dataset;
+    const cleanUrl = endpointUrl?.trim() ?? '';
+    if (!cleanUrl) {
+      throw new ApiError(400, 'Please enter an HTTP Data Source URL.');
+    }
     const created = await cygnusApi.createDataset({
       name: dataset.name,
       category: dataset.category,
@@ -647,7 +677,7 @@ export const imdxApi = {
       status: dataset.status === 'Published' ? 'active' : 'draft',
       dataSource: {
         connectorType: 'HTTP',
-        baseUrl: endpointUrl?.trim() || 'https://api.imdx.org/feeds/sample',
+        baseUrl: cleanUrl,
       },
       metadata: {
         coverage: dataset.coverage,
@@ -697,8 +727,7 @@ export const imdxApi = {
     purpose: string,
   ): Promise<SubscriptionRecord | null> {
     if (!isAgentConfigured() || !loadUserSession()?.token) return null;
-    const targetOffer = CATALOG_OFFERS.find((o) => o.id === offer.id);
-    const datasetId = offer.datasetId || targetOffer?.datasetId || offer.id;
+    const datasetId = offer.datasetId || offer.id;
     const detail = await cygnusApi.getCatalogDataset(datasetId);
     const canonical = JSON.stringify(canonicalContractObject(detail));
     const termsHash = await sha256Hex(canonical);

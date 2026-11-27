@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ModalPortal } from '../ModalPortal';
 import type {
   AccessRequestItem,
   AccessRequestStatus,
   MyDatasetItem,
+  TransferItem,
   WorkspaceNavKey,
 } from '../../types/dashboard';
 
@@ -11,44 +12,69 @@ interface DashboardOverviewProps {
   datasets: MyDatasetItem[];
   subscriptionsCount: number;
   accessRequests: AccessRequestItem[];
+  transfers?: TransferItem[];
   onUpdateAccessRequestStatus: (id: string, status: AccessRequestStatus, note?: string) => void;
   onRegisterDatasetClick: () => void;
   onNavigate: (nav: WorkspaceNavKey) => void;
 }
 
-const EXCHANGE_SERIES = {
-  '6m': {
-    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-    points: [
-      { label: 'Jan', incoming: 28, outgoing: 16 },
-      { label: 'Feb', incoming: 41, outgoing: 26 },
-      { label: 'Mar', incoming: 64, outgoing: 48 },
-      { label: 'Apr', incoming: 54, outgoing: 36 },
-      { label: 'May', incoming: 79, outgoing: 61 },
-      { label: 'Jun', incoming: 92, outgoing: 68 },
-    ],
-    incoming: '0,68 48,58 76,65 112,35 142,27 195,43 240,22 288,12 360,12',
-    outgoing: '0,82 48,72 76,79 112,50 142,41 195,56 240,34 288,24 316,30 338,24 360,36',
-  },
-  '12m': {
-    labels: ['Jul', 'Sep', 'Nov', 'Jan', 'Mar', 'Jun'],
-    points: [
-      { label: 'Jul', incoming: 19, outgoing: 11 },
-      { label: 'Sep', incoming: 34, outgoing: 22 },
-      { label: 'Nov', incoming: 49, outgoing: 34 },
-      { label: 'Jan', incoming: 61, outgoing: 45 },
-      { label: 'Mar', incoming: 77, outgoing: 58 },
-      { label: 'Jun', incoming: 96, outgoing: 74 },
-    ],
-    incoming: '0,75 48,66 96,52 144,44 192,38 240,28 288,18 360,10',
-    outgoing: '0,86 48,79 96,68 144,58 192,49 240,41 288,31 360,24',
-  },
-};
+function buildTransferSeries(transfers: TransferItem[], timeframe: '6m' | '12m') {
+  const monthCount = timeframe === '6m' ? 6 : 12;
+  const now = new Date();
+  const buckets: Array<{ key: string; label: string; incoming: number; outgoing: number }> = [];
+  for (let i = monthCount - 1; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleString('en-US', { month: 'short' });
+    buckets.push({ key, label, incoming: 0, outgoing: 0 });
+  }
+
+  for (const tx of transfers) {
+    const parsed = Date.parse(tx.timestamp);
+    const targetBucket = Number.isNaN(parsed)
+      ? buckets[buckets.length - 1]
+      : buckets.find((b) => {
+          const dt = new Date(parsed);
+          return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}` === b.key;
+        });
+    if (!targetBucket) continue;
+    if (tx.direction === 'Outbound') {
+      targetBucket.outgoing += 1;
+    } else {
+      targetBucket.incoming += 1;
+    }
+  }
+
+  const maxCount = Math.max(
+    1,
+    ...buckets.flatMap((b) => [b.incoming, b.outgoing]),
+  );
+  const stepX = buckets.length > 1 ? 360 / (buckets.length - 1) : 360;
+  const toY = (val: number) => 86 - (val / maxCount) * 72;
+
+  return {
+    maxCount,
+    stepX,
+    points: buckets.map((b, idx) => ({
+      ...b,
+      x: Math.round(idx * stepX),
+      incomingY: Math.round(toY(b.incoming)),
+      outgoingY: Math.round(toY(b.outgoing)),
+    })),
+    incomingLine: buckets
+      .map((b, idx) => `${Math.round(idx * stepX)},${Math.round(toY(b.incoming))}`)
+      .join(' '),
+    outgoingLine: buckets
+      .map((b, idx) => `${Math.round(idx * stepX)},${Math.round(toY(b.outgoing))}`)
+      .join(' '),
+  };
+}
 
 export function DashboardOverview({
   datasets,
   subscriptionsCount,
   accessRequests,
+  transfers = [],
   onUpdateAccessRequestStatus,
   onRegisterDatasetClick,
   onNavigate,
@@ -65,8 +91,36 @@ export function DashboardOverview({
     (r) => r.status === 'Pending Review' || r.status === 'Information Required',
   ).length;
 
-  const series = EXCHANGE_SERIES[timeframe];
+  const series = useMemo(() => buildTransferSeries(transfers, timeframe), [transfers, timeframe]);
   const hoveredPoint = hoveredMonthIdx !== null ? series.points[hoveredMonthIdx] : null;
+
+  const datasetMetrics = useMemo(() => {
+    if (datasets.length === 0) return [];
+    const numericQualities = datasets
+      .map((d) => Number.parseInt(d.quality, 10))
+      .filter((n) => !Number.isNaN(n) && n >= 0 && n <= 100);
+    const avgQuality =
+      numericQualities.length > 0
+        ? Math.round(numericQualities.reduce((acc, n) => acc + n, 0) / numericQualities.length)
+        : null;
+    const publishedPct = Math.round((publishedCount / datasets.length) * 100);
+    const realtimeCount = datasets.filter((d) => {
+      const freq = d.updateFrequency.toLowerCase();
+      return freq.includes('real') || freq.includes('min');
+    }).length;
+    const realtimePct = Math.round((realtimeCount / datasets.length) * 100);
+    const metadataCompleteCount = datasets.filter(
+      (d) => Boolean(d.version) && Boolean(d.coverage && d.coverage !== '—'),
+    ).length;
+    const metadataPct = Math.round((metadataCompleteCount / datasets.length) * 100);
+
+    return [
+      { label: 'Published readiness', pct: `${publishedPct}%` },
+      ...(avgQuality !== null ? [{ label: 'Reported quality score', pct: `${avgQuality}%` }] : []),
+      { label: 'Real-time feed share', pct: `${realtimePct}%` },
+      { label: 'Metadata completeness', pct: `${metadataPct}%` },
+    ];
+  }, [datasets, publishedCount]);
 
   return (
     <div className="space-y-4">
@@ -236,8 +290,8 @@ export function DashboardOverview({
               </h2>
               <p className="text-[12px] text-[#64748b]">
                 {hoveredPoint
-                  ? `${hoveredPoint.label}: ${hoveredPoint.incoming}k incoming · ${hoveredPoint.outgoing}k outgoing`
-                  : `Transfers across the last ${timeframe === '6m' ? '6' : '12'} months`}
+                  ? `${hoveredPoint.label}: ${hoveredPoint.incoming} incoming · ${hoveredPoint.outgoing} outgoing`
+                  : `${transfers.length} recorded transfer${transfers.length === 1 ? '' : 's'} across the last ${timeframe === '6m' ? '6' : '12'} months`}
               </p>
             </div>
 
@@ -266,69 +320,77 @@ export function DashboardOverview({
           </div>
 
           <div className="mt-3">
-            <svg viewBox="0 0 390 112" className="w-full h-[126px] overflow-visible">
-              {[
-                { y: 14, label: '1.0' },
-                { y: 50, label: '0.5' },
-                { y: 86, label: '0.0' },
-              ].map((tick) => (
-                <g key={tick.label}>
-                  <text x="0" y={tick.y + 3} fontSize="9.5" fill="#94a3b8">
-                    {tick.label}
-                  </text>
-                  <line
-                    x1="24"
-                    y1={tick.y}
-                    x2="384"
-                    y2={tick.y}
-                    stroke="#e2e8f0"
-                    strokeDasharray="3 3"
+            {transfers.length === 0 ? (
+              <div className="h-[126px] rounded-[10px] border border-dashed border-[#cbd5e1] bg-[#f8fafc]/70 flex items-center justify-center px-4 text-center">
+                <p className="text-[12.5px] text-[#64748b]">
+                  No transfer activity recorded yet. Pull or stream a subscribed dataset to see live activity.
+                </p>
+              </div>
+            ) : (
+              <svg viewBox="0 0 390 112" className="w-full h-[126px] overflow-visible">
+                {[
+                  { y: 14, label: String(series.maxCount) },
+                  { y: 50, label: String(Math.round(series.maxCount / 2)) },
+                  { y: 86, label: '0' },
+                ].map((tick) => (
+                  <g key={tick.label + tick.y}>
+                    <text x="0" y={tick.y + 3} fontSize="9.5" fill="#94a3b8">
+                      {tick.label}
+                    </text>
+                    <line
+                      x1="24"
+                      y1={tick.y}
+                      x2="384"
+                      y2={tick.y}
+                      stroke="#e2e8f0"
+                      strokeDasharray="3 3"
+                    />
+                  </g>
+                ))}
+
+                <g key={timeframe} transform="translate(24, 0)">
+                  <polyline
+                    className="imdx-chart-line"
+                    fill="none"
+                    stroke="#16b89a"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={series.incomingLine}
+                  />
+                  <polyline
+                    className="imdx-chart-line"
+                    fill="none"
+                    stroke="#002456"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={series.outgoingLine}
                   />
                 </g>
-              ))}
 
-              <g key={timeframe} transform="translate(24, 0)">
-                <polyline
-                  className="imdx-chart-line"
-                  fill="none"
-                  stroke="#16b89a"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  points={series.incoming}
-                />
-                <polyline
-                  className="imdx-chart-line"
-                  fill="none"
-                  stroke="#002456"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  points={series.outgoing}
-                />
-              </g>
-
-              {series.labels.map((label, idx) => (
-                <g
-                  key={label}
-                  onMouseEnter={() => setHoveredMonthIdx(idx)}
-                  onMouseLeave={() => setHoveredMonthIdx(null)}
-                  className="cursor-pointer"
-                >
-                  <rect x={idx * 66} y={8} width={60} height={102} fill="transparent" />
-                  <text
-                    x={28 + idx * 66}
-                    y="105"
-                    fontSize="9.5"
-                    fontWeight={hoveredMonthIdx === idx ? '700' : '400'}
-                    fill={hoveredMonthIdx === idx ? '#002456' : '#94a3b8'}
-                    textAnchor="middle"
+                {series.points.map((pt, idx) => (
+                  <g
+                    key={pt.key}
+                    onMouseEnter={() => setHoveredMonthIdx(idx)}
+                    onMouseLeave={() => setHoveredMonthIdx(null)}
+                    className="cursor-pointer"
                   >
-                    {label}
-                  </text>
-                </g>
-              ))}
-            </svg>
+                    <rect x={Math.max(0, 24 + pt.x - 16)} y={8} width={32} height={102} fill="transparent" />
+                    <text
+                      x={24 + pt.x}
+                      y="105"
+                      fontSize="9.5"
+                      fontWeight={hoveredMonthIdx === idx ? '700' : '400'}
+                      fill={hoveredMonthIdx === idx ? '#002456' : '#94a3b8'}
+                      textAnchor="middle"
+                    >
+                      {pt.label}
+                    </text>
+                  </g>
+                ))}
+              </svg>
+            )}
           </div>
         </div>
 
@@ -336,7 +398,7 @@ export function DashboardOverview({
           <div className="flex items-start justify-between gap-2">
             <div>
               <h2 className="text-[15.5px] font-semibold text-[#102529]">Dataset quality</h2>
-              <p className="text-[12px] text-[#64748b]">Illustrative validation summary</p>
+              <p className="text-[12px] text-[#64748b]">Computed from registered datasets</p>
             </div>
             <span className="text-[#334155]">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -347,25 +409,28 @@ export function DashboardOverview({
           </div>
 
           <div className="space-y-3 my-3">
-            {[
-              { label: 'Completeness', pct: '95%' },
-              { label: 'Freshness', pct: '91%' },
-              { label: 'Schema validity', pct: '87%' },
-              { label: 'Consistency', pct: '83%' },
-            ].map((row) => (
-              <div key={row.label} className="space-y-1">
-                <div className="flex items-center justify-between text-[12.5px]">
-                  <span className="text-[#334155]">{row.label}</span>
-                  <span className="font-semibold text-[#102529]">{row.pct}</span>
-                </div>
-                <div className="h-[5px] w-full rounded-full bg-[#e2e8f0] overflow-hidden">
-                  <div
-                    className="imdx-bar-animate h-full rounded-full bg-[#22b59b]"
-                    style={{ width: row.pct }}
-                  />
-                </div>
+            {datasetMetrics.length === 0 ? (
+              <div className="rounded-[10px] border border-dashed border-[#cbd5e1] bg-[#f8fafc]/70 py-8 px-4 text-center">
+                <p className="text-[12.5px] text-[#64748b]">
+                  No datasets registered yet. Quality metrics populate once datasets are added.
+                </p>
               </div>
-            ))}
+            ) : (
+              datasetMetrics.map((row) => (
+                <div key={row.label} className="space-y-1">
+                  <div className="flex items-center justify-between text-[12.5px]">
+                    <span className="text-[#334155]">{row.label}</span>
+                    <span className="font-semibold text-[#102529]">{row.pct}</span>
+                  </div>
+                  <div className="h-[5px] w-full rounded-full bg-[#e2e8f0] overflow-hidden">
+                    <div
+                      className="imdx-bar-animate h-full rounded-full bg-[#22b59b]"
+                      style={{ width: row.pct }}
+                    />
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -401,7 +466,14 @@ export function DashboardOverview({
               </tr>
             </thead>
             <tbody className="divide-y divide-[#f1f5f9] text-[13px] text-[#475569]">
-              {accessRequests.map((req, idx) => (
+              {accessRequests.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-[#64748b]">
+                    No inbound access requests yet.
+                  </td>
+                </tr>
+              ) : (
+                accessRequests.map((req, idx) => (
                 <tr
                   key={req.id}
                   onClick={() => {
@@ -435,7 +507,8 @@ export function DashboardOverview({
                   </td>
                   <td className="py-2.5 px-2 text-right text-[#64748b] font-semibold">&gt;</td>
                 </tr>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>

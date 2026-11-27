@@ -1,6 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { HomeHero } from './components/landing/HomeHero';
-import { CATALOG_OFFERS } from './data/dashboardData';
 import {
   clearLocalStore,
   createInitialStore,
@@ -473,6 +472,7 @@ export function App() {
     return base;
   });
   const [liveCatalog, setLiveCatalog] = useState<CatalogOffer[] | undefined>(undefined);
+  const [liveApplicationsWaiting, setLiveApplicationsWaiting] = useState<number | undefined>(undefined);
   const [userSession, setUserSession] = useState<PersistedUserSession | null>(() =>
     loadUserSession(),
   );
@@ -574,7 +574,7 @@ export function App() {
     if (!userSession?.token) return;
     void imdxApi
       .syncWorkspace()
-      .then(({ liveCatalog: catalog, ...patch }) => {
+      .then(({ liveCatalog: catalog, orgProfile, ...patch }) => {
         if (!active) return;
         if (catalog) setLiveCatalog(catalog);
         setStore((prev) => ({
@@ -585,6 +585,22 @@ export function App() {
           consentRequests: patch.consentRequests ?? [],
           accessRequests: patch.accessRequests ?? [],
           billingTransactions: patch.billingTransactions ?? [],
+          ...(orgProfile
+            ? {
+                onboarding: {
+                  ...prev.onboarding,
+                  organization: {
+                    ...prev.onboarding.organization,
+                    legalName: orgProfile.legalName || prev.onboarding.organization.legalName,
+                  },
+                  representative: {
+                    ...prev.onboarding.representative,
+                    name: orgProfile.repName || prev.onboarding.representative.name,
+                    email: orgProfile.workEmail || prev.onboarding.representative.email,
+                  },
+                },
+              }
+            : {}),
         }));
       })
       .catch((err) => {
@@ -601,8 +617,11 @@ export function App() {
     if (!adminSession?.token) return;
     void imdxApi
       .syncAdmin()
-      .then((patch) => {
+      .then(({ applicationsWaiting, ...patch }) => {
         if (!active) return;
+        if (typeof applicationsWaiting === 'number') {
+          setLiveApplicationsWaiting(applicationsWaiting);
+        }
         if (Object.keys(patch).length > 0) {
           setStore((prev) => ({ ...prev, ...patch }));
         }
@@ -634,7 +653,7 @@ export function App() {
     const nextLogs = [
       {
         id: `log-${Date.now()}`,
-        actor: prev.onboarding.representative.email || 'aarav@abcmobility.in',
+        actor: userSession?.email || adminSession?.email || prev.onboarding.representative.email || 'system',
         action: auditAction,
         target: auditTarget,
         timestamp: 'Just now',
@@ -832,7 +851,7 @@ export function App() {
     setApiFeedback(null);
     try {
       await imdxApi.requestConsent(record);
-      const offer = (liveCatalog ?? CATALOG_OFFERS).find((o) => o.id === record.offerId);
+      const offer = (liveCatalog ?? []).find((o) => o.id === record.offerId);
       setStore((prev) => {
         const filtered = prev.consentRequests.filter((c) => c.offerId !== record.offerId);
         return {
@@ -870,7 +889,7 @@ export function App() {
       status: 'Active',
     };
     const transaction: BillingTransaction = {
-      id: `TXN-${Math.floor(78900 + Math.random() * 900)}`,
+      id: `TXN-${Date.now().toString().slice(-6)}`,
       dataset: offer.title,
       counterparty: offer.publisher,
       type: pricing.label,
@@ -888,17 +907,20 @@ export function App() {
     try {
       const serverSub = await imdxApi.createSubscription(offer, planId, purpose);
       const subscription = serverSub ?? fallbackSub;
+      const isLive = Boolean(serverSub);
       setStore((prev) => ({
         ...prev,
         subscriptions: [subscription, ...prev.subscriptions.filter((s) => s.offerId !== offer.id)],
-        billingTransactions: [transaction, ...prev.billingTransactions],
+        ...(isLive ? {} : { billingTransactions: [transaction, ...prev.billingTransactions] }),
         ...pushAuditAndNotification(
           prev,
           'Subscribed to Catalog Offer',
           `${offer.title} (${pricing.label})`,
           {
             title: 'Subscription active',
-            detail: `Subscribed to ${offer.title} · Invoice ${transaction.id} created.`,
+            detail: isLive
+              ? `Subscribed to ${offer.title}.`
+              : `Subscribed to ${offer.title} · Invoice ${transaction.id} created.`,
             targetNav: 'subscriptions',
           },
         ),
@@ -912,7 +934,7 @@ export function App() {
     setApiFeedback(null);
     try {
       await imdxApi.revokeSubscription(offerId);
-      const offer = (liveCatalog ?? CATALOG_OFFERS).find((o) => o.id === offerId);
+      const offer = (liveCatalog ?? []).find((o) => o.id === offerId);
       setStore((prev) => ({
         ...prev,
         subscriptions: prev.subscriptions.filter((s) => s.offerId !== offerId),
@@ -938,14 +960,21 @@ export function App() {
     setApiFeedback(null);
     try {
       const serverTx = subscriptionId ? await imdxApi.triggerTransfer(subscriptionId) : null;
+      if (userSession?.token && !serverTx) {
+        setApiFeedback({
+          kind: 'error',
+          message: 'Transfer requires an active backend subscription on the Cygnus connector.',
+        });
+        return;
+      }
       const tx: TransferItem = serverTx ?? {
-        id: `TX-${Math.floor(9042 + Math.random() * 900)}`,
+        id: `TX-${Date.now().toString().slice(-6)}`,
         dataset: datasetTitle,
         protocol,
         direction,
-        volume: `${(12 + Math.random() * 68).toFixed(1)} MB`,
+        volume: '0 MB',
         status: 'Completed',
-        timestamp: 'Just now',
+        timestamp: new Date().toISOString(),
       };
       setStore((prev) => ({
         ...prev,
@@ -1084,7 +1113,7 @@ export function App() {
     adminSession?.email ||
     store.onboarding.representative.name ||
     store.onboarding.registration.fullName ||
-    'Aarav Mehta';
+    'User';
 
   const isAuthenticated =
     portalMode === 'admin' ? Boolean(adminSession?.token) : Boolean(userSession?.token);
@@ -1228,7 +1257,13 @@ export function App() {
                 ? `${userSession.role === 'PROV' ? 'Provider' : 'Consumer'} · ${userSession.bpn || userSession.orgRole}`
                 : 'Organization Admin'
           }
-          pendingApplicationsCount={store.applicationStatus === 'Under Review' ? 1 : 0}
+          pendingApplicationsCount={
+            adminSession?.token
+              ? (liveApplicationsWaiting ?? 0)
+              : store.applicationStatus === 'Under Review' && store.onboarding.applicationNumber
+                ? 1
+                : 0
+          }
           isBackendLive={isBackendConfigured()}
           isAuthenticated={isAuthenticated}
           onSignInClick={() => setIsAuthModalOpen(true)}
@@ -1291,6 +1326,7 @@ export function App() {
                     datasets={store.datasets}
                     subscriptionsCount={store.subscriptions.length}
                     accessRequests={store.accessRequests}
+                    transfers={store.transfers}
                     onUpdateAccessRequestStatus={handleUpdateAccessRequestStatus}
                     onRegisterDatasetClick={() => setIsRegisterDatasetOpen(true)}
                     onNavigate={setActiveWorkspaceNav}
@@ -1345,7 +1381,7 @@ export function App() {
                     }}
                     onUnsubscribe={handleUnsubscribeOffer}
                     onPullData={(offerId) => {
-                      const offer = (liveCatalog ?? CATALOG_OFFERS).find((o) => o.id === offerId);
+                      const offer = (liveCatalog ?? []).find((o) => o.id === offerId);
                       void handleTriggerTransfer(
                         offer?.title ?? 'Catalog Dataset',
                         offer?.protocol ?? 'GTFS',
@@ -1361,13 +1397,28 @@ export function App() {
                   <TransfersPage
                     transfers={store.transfers}
                     searchQuery={searchQuery}
-                    onTriggerSync={() =>
-                      handleTriggerTransfer('Road Network Infrastructure', 'GTFS', 'Inbound')
-                    }
+                    onTriggerSync={() => {
+                      const activeSub = store.subscriptions.find((s) => s.status === 'Active');
+                      if (userSession?.token && !activeSub) {
+                        setApiFeedback({
+                          kind: 'error',
+                          message: 'Subscribe to an active dataset first before initiating a connector sync.',
+                        });
+                        return;
+                      }
+                      void handleTriggerTransfer(
+                        activeSub?.datasetName ?? 'Subscribed Dataset',
+                        'GTFS',
+                        'Inbound',
+                        activeSub?.offerId,
+                      );
+                    }}
                   />
                 )}
 
-                {activeWorkspaceNav === 'compute' && <ComputePage />}
+                {activeWorkspaceNav === 'compute' && (
+                  <ComputePage datasets={store.datasets} offers={liveCatalog} />
+                )}
 
                 {activeWorkspaceNav === 'billing' && (
                   <BillingPage
@@ -1380,6 +1431,7 @@ export function App() {
 
                 {activeWorkspaceNav === 'settings' && (
                   <SettingsPage
+                    key={`${store.onboarding.organization.legalName}-${store.onboarding.representative.email}`}
                     onboardingState={store.onboarding}
                     preferences={store.preferences}
                     onSaveSettings={handleSaveSettings}

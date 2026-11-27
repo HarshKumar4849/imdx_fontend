@@ -12,10 +12,10 @@ interface RegisterDatasetModalProps {
 export function RegisterDatasetModal({ isOpen, onClose, onCreate }: RegisterDatasetModalProps) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('Public transport');
-  const [coverage, setCoverage] = useState('Pune');
+  const [coverage, setCoverage] = useState('');
   const [updateFrequency, setUpdateFrequency] = useState('Every 5 min');
   const [status, setStatus] = useState<DatasetStatus>('Awaiting Approval');
-  const [endpointUrl, setEndpointUrl] = useState('https://api.imdx.org/feeds/sample');
+  const [endpointUrl, setEndpointUrl] = useState('');
   const [probeStatus, setProbeStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [probing, setProbing] = useState(false);
   const [error, setError] = useState('');
@@ -55,9 +55,9 @@ export function RegisterDatasetModal({ isOpen, onClose, onCreate }: RegisterData
         name: name.trim(),
         category: category.trim() || 'Mobility',
         version: 'v1.0',
-        coverage: coverage.trim() || 'India',
+        coverage: coverage.trim() || '—',
         updateFrequency: updateFrequency.trim() || 'Daily',
-        quality: '95%',
+        quality: 'Pending',
         status,
       },
       endpointUrl.trim() || undefined,

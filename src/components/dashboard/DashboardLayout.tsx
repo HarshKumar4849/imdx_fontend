@@ -215,7 +215,7 @@ export function DashboardLayout({
       .split(/\s+/)
       .slice(0, 2)
       .map((part) => part[0]?.toUpperCase() ?? '')
-      .join('') || 'AM';
+      .join('') || 'U';
 
   return (
     <div
@@ -592,7 +592,9 @@ export function DashboardLayout({
                       <span className="imdx-live-dot size-2 rounded-full bg-[#10b981]" />
                       <span>Platform operational</span>
                     </div>
-                    <p className="mt-0.5 pl-3.5 text-[11px] text-[#64748b]">Production · IMDX</p>
+                    <p className="mt-0.5 pl-3.5 text-[11px] text-[#64748b]">
+                      {isBackendLive ? 'Connected · IMDX' : 'Standalone · IMDX'}
+                    </p>
                   </div>
                 </>
               ) : (
@@ -605,10 +607,12 @@ export function DashboardLayout({
                       </span>
                       <span className="flex items-center gap-1 text-[11px] font-medium text-[#059669]">
                         <span className="imdx-live-dot size-1.5 rounded-full bg-[#10b981]" />
-                        Connected
+                        {isBackendLive ? 'Connected' : 'Local'}
                       </span>
                     </div>
-                    <p className="mt-1 text-[11px] text-[#64748b]">Provider + Consumer</p>
+                    <p className="mt-1 text-[11px] text-[#64748b] truncate">
+                      {userRoleLabel || 'Workspace'}
+                    </p>
                   </div>
 
                   <button

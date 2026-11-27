@@ -72,6 +72,15 @@ export function HomeHero({ onStartOnboarding, onOpenWorkspace }: HomeHeroProps) 
   const footerRef = useRef<HTMLElement>(null);
   const footerPixelsRef = useRef<HTMLCanvasElement>(null);
 
+  const warmFullVideo = () => {
+    const video = fullVideoRef.current;
+    if (!video || video.preload === "auto") return;
+    video.preload = "auto";
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      video.load();
+    }
+  };
+
   const openFullVideo = () => {
     backgroundVideoRef.current?.pause();
     setVideoError(null);
@@ -80,9 +89,10 @@ export function HomeHero({ onStartOnboarding, onOpenWorkspace }: HomeHeroProps) 
     setWatchingVideo(true);
     const video = fullVideoRef.current;
     if (video) {
+      video.preload = "auto";
       video.muted = false;
       if (video.readyState > HTMLMediaElement.HAVE_NOTHING) video.currentTime = 0;
-      if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
         pendingVideoPlayRef.current = false;
         void video.play().catch(() => {
           setVideoLoading(false);
@@ -657,6 +667,9 @@ export function HomeHero({ onStartOnboarding, onOpenWorkspace }: HomeHeroProps) 
                   <button
                     type="button"
                     className="hero-video-play-overlay"
+                    onMouseEnter={warmFullVideo}
+                    onFocus={warmFullVideo}
+                    onTouchStart={warmFullVideo}
                     onClick={openFullVideo}
                     aria-label="Play full IMDX walkthrough video"
                   >
@@ -701,7 +714,9 @@ export function HomeHero({ onStartOnboarding, onOpenWorkspace }: HomeHeroProps) 
               className="video-modal-player"
               controls
               playsInline
-              preload="none"
+              preload="metadata"
+              poster="/images/video-poster.webp"
+              onLoadedData={onFullVideoCanPlay}
               onCanPlay={onFullVideoCanPlay}
               onPlaying={() => {
                 pendingVideoPlayRef.current = false;
