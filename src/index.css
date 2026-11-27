@@ -217,11 +217,11 @@
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: #008fa7;
+  color: #014276;
 }
 
 .imdx-gradient-text {
-  background: linear-gradient(100deg, #087d68 0%, #008fa7 54%, #2563eb 100%);
+  background: linear-gradient(100deg, #00B889 0%, #0079DB 52%, #182DC7 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -229,21 +229,21 @@
 
 /* 01. Squash & Stretch + 02. Anticipation + 09. Snappy Timing on Primary Actions */
 .imdx-btn-primary {
-  background: linear-gradient(100deg, #2fb89d 0%, #00a5c3 58%, #2e84cb 100%);
+  background: linear-gradient(100deg, #00B889 0%, #0095C9 52%, #062996 100%);
   color: #ffffff;
-  box-shadow: 0 12px 24px -10px rgba(0, 143, 167, 0.55);
+  box-shadow: 0 12px 24px -10px rgba(6, 41, 150, 0.44);
   transition: transform 180ms var(--ease-spring), box-shadow 180ms var(--ease-smooth), filter 180ms ease;
 }
 
 .imdx-btn-primary:hover {
   transform: translateY(-2px) scaleX(1.015) scaleY(1.015);
-  box-shadow: 0 16px 30px -10px rgba(0, 143, 167, 0.65);
-  filter: brightness(1.03);
+  box-shadow: 0 16px 30px -10px rgba(0, 121, 219, 0.56);
+  filter: brightness(1.04);
 }
 
 .imdx-btn-primary:active {
   transform: translateY(1px) scaleX(1.035) scaleY(0.95);
-  box-shadow: 0 6px 14px -8px rgba(0, 143, 167, 0.45);
+  box-shadow: 0 6px 14px -8px rgba(1, 34, 83, 0.45);
 }
 
 .imdx-nav-item {

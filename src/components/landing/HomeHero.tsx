@@ -569,7 +569,7 @@ export function HomeHero({ onStartOnboarding, onOpenWorkspace }: HomeHeroProps) 
           >
             <img
               className="imdx-logo"
-              src="/images/imdx-logo-transparent.webp"
+              src="/images/imdx-logo.webp"
               alt="IMDX — India Mobility Data Exchange"
               fetchPriority="high"
               decoding="async"
