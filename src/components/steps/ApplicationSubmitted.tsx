@@ -11,6 +11,9 @@ interface ApplicationSubmittedProps {
   applicationStatus: ApplicationReviewStatus;
   reviewNote?: string;
   onOpenWorkspace: () => void;
+  onResubmitSuccess?: () => void;
+  onEditApplication?: () => void;
+  onStartNewApplication?: () => void;
 }
 
 export function ApplicationSubmitted({
@@ -19,6 +22,9 @@ export function ApplicationSubmitted({
   applicationStatus,
   reviewNote,
   onOpenWorkspace,
+  onResubmitSuccess,
+  onEditApplication,
+  onStartNewApplication,
 }: ApplicationSubmittedProps) {
   const isApproved = applicationStatus === 'Approved';
   const isChangesRequested = applicationStatus === 'Changes Requested';
@@ -30,6 +36,7 @@ export function ApplicationSubmitted({
     setResubmitNotice('');
     try {
       await imdxApi.resubmitApplication();
+      onResubmitSuccess?.();
       setResubmitNotice('Application resubmitted to Governance Desk for review.');
     } catch (err) {
       setResubmitNotice(err instanceof Error ? err.message : 'Unable to resubmit right now.');
@@ -105,6 +112,15 @@ export function ApplicationSubmitted({
                       >
                         {resubmitting ? 'Resubmitting…' : 'Resubmit Application'}
                       </button>
+                      {onEditApplication && (
+                        <button
+                          type="button"
+                          onClick={onEditApplication}
+                          className="h-[28px] px-3.5 rounded-full border border-[#002456]/25 bg-white text-[#002456] text-[11.5px] font-semibold hover:bg-[#f0f9ff] cursor-pointer"
+                        >
+                          Edit Details
+                        </button>
+                      )}
                       {resubmitNotice && (
                         <span className="text-[12px] font-medium text-[#059669]">
                           {resubmitNotice}
@@ -168,13 +184,24 @@ export function ApplicationSubmitted({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={onOpenWorkspace}
-                className="h-[38px] px-5 rounded-[45px] imdx-btn-primary text-[13.5px] font-semibold cursor-pointer shrink-0"
-              >
-                Open IMDX Dashboard →
-              </button>
+              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                {onStartNewApplication && (
+                  <button
+                    type="button"
+                    onClick={onStartNewApplication}
+                    className="h-[38px] px-4 rounded-[45px] border border-[#008fa7]/35 bg-white/90 hover:bg-white text-[13px] font-semibold text-[#002456] cursor-pointer shrink-0"
+                  >
+                    Start New Application
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onOpenWorkspace}
+                  className="h-[38px] px-5 rounded-[45px] imdx-btn-primary text-[13.5px] font-semibold cursor-pointer shrink-0"
+                >
+                  Open IMDX Dashboard →
+                </button>
+              </div>
             </div>
           </div>
         </div>

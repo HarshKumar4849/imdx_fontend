@@ -3,6 +3,7 @@ import { HomeHero } from './components/landing/HomeHero';
 import { CATALOG_OFFERS } from './data/dashboardData';
 import {
   clearLocalStore,
+  createInitialStore,
   cygnusApi,
   imdxApi,
   isBackendConfigured,
@@ -335,7 +336,24 @@ export function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleStartNewOnboarding = () => {
+    saveApplicationToken(null);
+    setApiFeedback(null);
+    setStore((prev) => ({
+      ...prev,
+      onboarding: structuredClone(createInitialStore().onboarding),
+      applicationStatus: 'Under Review',
+      reviewNote: '',
+    }));
+    setAppSection('onboarding');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const openOnboarding = () => {
+    if (store.onboarding.stage === 'submitted') {
+      handleStartNewOnboarding();
+      return;
+    }
     setAppSection('onboarding');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -377,6 +395,8 @@ export function App() {
       setStore((prev) => ({
         ...prev,
         onboarding: submittedState,
+        applicationStatus: 'Under Review',
+        reviewNote: '',
         ...pushAuditAndNotification(
           prev,
           'Submitted Onboarding Application',
@@ -941,6 +961,9 @@ export function App() {
           }}
           onTrackClick={() => setIsTrackModalOpen(true)}
           onOpenWorkspace={() => openWorkspace('dashboard')}
+          onStartNewApplication={
+            store.onboarding.stage !== 'register' ? handleStartNewOnboarding : undefined
+          }
         />
 
         <main>
@@ -1078,6 +1101,24 @@ export function App() {
                   applicationStatus={store.applicationStatus}
                   reviewNote={store.reviewNote}
                   onOpenWorkspace={() => openWorkspace('dashboard')}
+                  onResubmitSuccess={() =>
+                    setStore((prev) => ({
+                      ...prev,
+                      applicationStatus: 'Under Review',
+                      reviewNote: '',
+                      ...pushAuditAndNotification(
+                        prev,
+                        'Resubmitted Onboarding Application',
+                        prev.onboarding.applicationNumber,
+                        {
+                          title: 'Application resubmitted',
+                          detail: `${prev.onboarding.applicationNumber} sent back to Governance Desk.`,
+                        },
+                      ),
+                    }))
+                  }
+                  onEditApplication={() => goToStage(1)}
+                  onStartNewApplication={handleStartNewOnboarding}
                 />
               </div>
             )}

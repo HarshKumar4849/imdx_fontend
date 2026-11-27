@@ -4,9 +4,15 @@ interface HeaderProps {
   onLogoClick: () => void;
   onTrackClick: () => void;
   onOpenWorkspace: () => void;
+  onStartNewApplication?: () => void;
 }
 
-export function Header({ onLogoClick, onTrackClick, onOpenWorkspace }: HeaderProps) {
+export function Header({
+  onLogoClick,
+  onTrackClick,
+  onOpenWorkspace,
+  onStartNewApplication,
+}: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 w-full bg-gradient-to-r from-[#001a3d] via-[#002456] to-[#035877] border-b border-[#45c0b2]/35 h-[56px] px-3 sm:px-6 flex items-center justify-between shadow-[0_8px_28px_-12px_rgba(0,36,86,0.45)]">
       <button
@@ -22,7 +28,17 @@ export function Header({ onLogoClick, onTrackClick, onOpenWorkspace }: HeaderPro
         />
       </button>
 
-      <div className="flex items-center gap-2.5 sm:gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
+        {onStartNewApplication && (
+          <button
+            type="button"
+            onClick={onStartNewApplication}
+            className="h-[32px] px-3 rounded-full border border-[#45c0b2]/45 bg-[#45c0b2]/15 hover:bg-[#45c0b2]/25 text-[#a7f3d0] font-medium text-[12.5px] backdrop-blur-sm transition-all cursor-pointer whitespace-nowrap"
+          >
+            + New Application
+          </button>
+        )}
+
         <button
           type="button"
           onClick={onOpenWorkspace}

@@ -86,7 +86,7 @@ export function isBackendConfigured(): boolean {
 }
 
 export function createInitialStore(): ImdxAppStore {
-  return {
+  return structuredClone({
     onboarding: INITIAL_ONBOARDING_STATE,
     datasets: INITIAL_MY_DATASETS,
     subscriptions: INITIAL_SUBSCRIPTIONS,
@@ -96,13 +96,13 @@ export function createInitialStore(): ImdxAppStore {
     billingTransactions: INITIAL_BILLING_TRANSACTIONS,
     notifications: INITIAL_NOTIFICATIONS,
     preferences: INITIAL_WORKSPACE_PREFERENCES,
-    applicationStatus: 'Under Review',
+    applicationStatus: 'Under Review' as const,
     reviewNote: '',
     participants: INITIAL_ADMIN_PARTICIPANTS,
     policies: INITIAL_ADMIN_POLICIES,
     auditLogs: INITIAL_AUDIT_LOGS,
     purposes: INITIAL_DATA_PURPOSES,
-  };
+  });
 }
 
 export function loadLocalStore(): ImdxAppStore {
@@ -440,7 +440,8 @@ export const imdxApi = {
 
   async startApplication(data: { fullName: string; workEmail: string; countryCode: string; phoneNumber: string }): Promise<void> {
     if (!isPlatformConfigured()) return;
-    const mobile = `${data.countryCode}${data.phoneNumber.replace(/\s+/g, '')}`;
+    const digits = data.phoneNumber.replace(/\D/g, '');
+    const mobile = digits ? `${data.countryCode}${digits}` : '';
     await cygnusApi.startApplication({
       name: data.fullName.trim(),
       email: data.workEmail.trim(),
@@ -470,12 +471,13 @@ export const imdxApi = {
   async saveRepresentativeStep(rep: OnboardingState['representative']): Promise<void> {
     const token = loadApplicationToken();
     if (!isPlatformConfigured() || !token) return;
+    const digits = rep.phoneNumber.replace(/\D/g, '');
     await cygnusApi.saveRepresentative(
       {
         name: rep.name,
         designation: rep.designation,
         email: rep.email,
-        mobile: `${rep.countryCode}${rep.phoneNumber.replace(/\s+/g, '')}`,
+        mobile: digits ? `${rep.countryCode}${digits}` : '',
         isOfficer: rep.isDirectorOrOfficer,
       },
       token,
@@ -504,9 +506,12 @@ export const imdxApi = {
   async submitApplication(state: OnboardingState): Promise<void> {
     const token = loadApplicationToken();
     if (!isPlatformConfigured() || !token) return;
+    const livePolicies = await cygnusApi.listPublicPolicies().catch(() => []);
+    const versionBySlug = new Map(livePolicies.map((p) => [p.slug, p.version]));
     for (const [slug, accepted] of Object.entries(state.acceptedPolicies)) {
       if (accepted) {
-        await cygnusApi.acceptPolicy(slug, 1, token).catch(() => undefined);
+        const version = versionBySlug.get(slug) ?? 1;
+        await cygnusApi.acceptPolicy(slug, version, token).catch(() => undefined);
       }
     }
     await cygnusApi.submitApplication(token);
@@ -556,12 +561,11 @@ export const imdxApi = {
     const admin = loadAdminSession();
     if (!isPlatformConfigured() || !admin?.token) return {};
 
-    const [participantsRes, policiesRes, auditRes, purposesRes, appsRes] = await Promise.allSettled([
+    const [participantsRes, policiesRes, auditRes, purposesRes] = await Promise.allSettled([
       cygnusApi.listParticipants(),
       cygnusApi.listAdminPolicies(),
       cygnusApi.listAuditEvents(50),
       cygnusApi.listAdminPurposes(true),
-      cygnusApi.listAdminApplications(),
     ]);
 
     const patch: Partial<ImdxAppStore> = {};
@@ -604,9 +608,6 @@ export const imdxApi = {
         description: p.description || '',
         active: p.active ?? true,
       }));
-    }
-    if (appsRes.status === 'fulfilled' && appsRes.value.length > 0) {
-      patch.applicationStatus = mapAppStatus(appsRes.value[0].status);
     }
     return patch;
   },
