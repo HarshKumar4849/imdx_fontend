@@ -321,9 +321,9 @@
   position: relative;
   width: 100%;
   padding: 4px 0 4px 18px;
-  opacity: 0;
-  transform: translateY(16px);
-  transition: opacity .55s var(--ease-reveal) .08s, transform .65s var(--ease-reveal) .08s;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity .45s var(--ease-reveal), transform .55s var(--ease-reveal);
 }
 .summary-frame::before {
   content: "";
@@ -574,6 +574,7 @@
   z-index: 4;
   inset: -1px 0 0;
   min-height: 115svh;
+  pointer-events: none;
   transform: translate3d(0, calc((1 - var(--page-rise, 0)) * (100% - 1px)), 0);
   will-change: transform;
 }
