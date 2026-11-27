@@ -16,7 +16,9 @@ export type AdminNavKey =
   | 'applications'
   | 'policies'
   | 'audit-log'
+  | 'verify-audit'
   | 'purposes'
+  | 'cluster-health'
   | 'capacity'
   | 'settings';
 

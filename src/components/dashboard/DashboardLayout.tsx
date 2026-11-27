@@ -21,6 +21,7 @@ interface DashboardLayoutProps {
   onMarkAllNotificationsRead: () => void;
   userDisplayName: string;
   userRoleLabel?: string;
+  pendingApplicationsCount?: number;
   onGoToLanding: () => void;
   onGoToOnboarding: () => void;
   isBackendLive?: boolean;
@@ -105,6 +106,19 @@ function SidebarIcon({ name, active }: { name: string; active: boolean }) {
           <circle cx="12" cy="12" r="4" />
         </svg>
       );
+    case 'verify-audit':
+      return (
+        <svg {...common}>
+          <path d="M9 12l2 2 4-4" />
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+      );
+    case 'cluster-health':
+      return (
+        <svg {...common}>
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
+      );
     default:
       return (
         <svg {...common}>
@@ -131,10 +145,11 @@ const ADMIN_NAV_ITEMS: Array<{ key: AdminNavKey; label: string }> = [
   { key: 'participants', label: 'Participants' },
   { key: 'applications', label: 'Applications' },
   { key: 'policies', label: 'Policies' },
-  { key: 'audit-log', label: 'Audit Log' },
+  { key: 'audit-log', label: 'Audit Logs' },
+  { key: 'verify-audit', label: 'Verify Audit' },
   { key: 'purposes', label: 'Purposes' },
+  { key: 'cluster-health', label: 'Cluster Health' },
   { key: 'capacity', label: 'Capacity' },
-  { key: 'settings', label: 'Settings' },
 ];
 
 export function DashboardLayout({
@@ -151,6 +166,7 @@ export function DashboardLayout({
   onMarkAllNotificationsRead,
   userDisplayName,
   userRoleLabel,
+  pendingApplicationsCount,
   onGoToLanding,
   onGoToOnboarding,
   isBackendLive,
@@ -214,9 +230,13 @@ export function DashboardLayout({
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => onWorkspaceNavChange('dashboard')}
+            onClick={() =>
+              portalMode === 'admin'
+                ? onAdminNavChange('dashboard')
+                : onWorkspaceNavChange('dashboard')
+            }
             className="relative h-[40px] w-[118px] overflow-hidden cursor-pointer shrink-0"
-            aria-label="IMDX Workspace Home"
+            aria-label={portalMode === 'admin' ? 'IMDX Admin Home' : 'IMDX Workspace Home'}
           >
             <img
               src={imdxLogoDark}
@@ -243,7 +263,11 @@ export function DashboardLayout({
             type="search"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search datasets, transfers, subscriptions..."
+            placeholder={
+              portalMode === 'admin'
+                ? 'Search participants, applications, events...'
+                : 'Search datasets, transfers, subscriptions...'
+            }
             className="w-full min-w-0 bg-transparent text-[12.5px] text-[#0f0f0f] placeholder:text-[#94a3b8] focus:outline-none"
           />
         </div>
@@ -462,7 +486,11 @@ export function DashboardLayout({
             type="search"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search datasets, transfers, subscriptions..."
+            placeholder={
+              portalMode === 'admin'
+                ? 'Search participants, applications, events...'
+                : 'Search datasets, transfers, subscriptions...'
+            }
             className="w-full min-w-0 bg-transparent text-[12.5px] text-[#0f0f0f] placeholder:text-[#94a3b8] focus:outline-none"
           />
         </div>
@@ -504,24 +532,35 @@ export function DashboardLayout({
                 })
               : ADMIN_NAV_ITEMS.map((item) => {
                   const isActive = activeAdminNav === item.key;
+                  const showAppBadge =
+                    item.key === 'applications' &&
+                    typeof pendingApplicationsCount === 'number' &&
+                    pendingApplicationsCount > 0;
                   return (
                     <button
                       key={item.key}
                       type="button"
                       onClick={() => onAdminNavChange(item.key)}
                       title={item.label}
-                      className={`h-[38px] w-full flex items-center gap-3 px-3 rounded-[8px] transition-all cursor-pointer border-l-[3px] ${
+                      className={`h-[38px] w-full flex items-center justify-between gap-2 px-3 rounded-[8px] transition-all cursor-pointer border-l-[3px] ${
                         isActive
                           ? 'bg-[#e9faf5] border-[#10b981] text-[#059669] font-semibold'
                           : 'border-transparent text-[#334155] hover:bg-[#f1f5f9] hover:text-[#102529]'
                       }`}
                     >
-                      <span className="w-[18px] flex items-center justify-center shrink-0">
-                        <SidebarIcon name={item.key} active={isActive} />
+                      <span className="flex items-center gap-3 min-w-0">
+                        <span className="w-[18px] flex items-center justify-center shrink-0">
+                          <SidebarIcon name={item.key} active={isActive} />
+                        </span>
+                        {!isSidebarCollapsed && (
+                          <span className="hidden md:inline text-[13.5px] whitespace-nowrap truncate">
+                            {item.label}
+                          </span>
+                        )}
                       </span>
-                      {!isSidebarCollapsed && (
-                        <span className="hidden md:inline text-[13.5px] whitespace-nowrap">
-                          {item.label}
+                      {!isSidebarCollapsed && showAppBadge && (
+                        <span className="hidden md:inline-flex items-center justify-center min-w-[22px] h-[20px] px-1.5 rounded-full bg-[#002456] text-white text-[11px] font-semibold">
+                          {pendingApplicationsCount}
                         </span>
                       )}
                     </button>
@@ -532,33 +571,61 @@ export function DashboardLayout({
           {/* Bottom Sidebar Footer matching screenshots */}
           {!isSidebarCollapsed && (
             <div className="hidden md:block p-3 border-t border-[#008fc3]/15 space-y-2">
-              <div className="imdx-subbox rounded-[10px] px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-1.5 text-[12px] font-semibold text-[#102529]">
-                    <span className="text-[#008fa7]">☍</span> IMDX Network
-                  </span>
-                  <span className="flex items-center gap-1 text-[11px] font-medium text-[#059669]">
-                    <span className="size-1.5 rounded-full bg-[#10b981]" />
-                    Connected
-                  </span>
-                </div>
-                <p className="mt-1 text-[11px] text-[#64748b]">Provider + Consumer</p>
-              </div>
+              {portalMode === 'admin' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onAdminNavChange('settings')}
+                    className={`h-[36px] w-full flex items-center gap-3 px-3 rounded-[8px] transition-all cursor-pointer border-l-[3px] ${
+                      activeAdminNav === 'settings'
+                        ? 'bg-[#e9faf5] border-[#10b981] text-[#059669] font-semibold'
+                        : 'border-transparent text-[#334155] hover:bg-[#f1f5f9] hover:text-[#102529]'
+                    }`}
+                  >
+                    <span className="w-[18px] flex items-center justify-center shrink-0">
+                      <SidebarIcon name="settings" active={activeAdminNav === 'settings'} />
+                    </span>
+                    <span className="text-[13.5px] whitespace-nowrap">Settings</span>
+                  </button>
+                  <div className="imdx-subbox rounded-[10px] px-3 py-2.5">
+                    <div className="flex items-center gap-1.5 text-[12px] font-semibold text-[#102529]">
+                      <span className="size-2 rounded-full bg-[#10b981]" />
+                      <span>Platform operational</span>
+                    </div>
+                    <p className="mt-0.5 pl-3.5 text-[11px] text-[#64748b]">Production · IMDX</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="imdx-subbox rounded-[10px] px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-[12px] font-semibold text-[#102529]">
+                        <span className="text-[#008fa7]">☍</span> IMDX Network
+                      </span>
+                      <span className="flex items-center gap-1 text-[11px] font-medium text-[#059669]">
+                        <span className="size-1.5 rounded-full bg-[#10b981]" />
+                        Connected
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-[#64748b]">Provider + Consumer</p>
+                  </div>
 
-              <button
-                type="button"
-                onClick={() => setShowSupportNotice((prev) => !prev)}
-                className="w-full flex items-center gap-2 px-2 py-1.5 text-[12.5px] text-[#475569] hover:text-[#102529] cursor-pointer"
-              >
-                <span className="inline-flex items-center justify-center size-4 rounded-full border border-[#94a3b8] text-[10px]">
-                  ?
-                </span>
-                <span>Help &amp; Support</span>
-              </button>
-              {showSupportNotice && (
-                <p className="px-2 text-[11px] text-[#059669]">
-                  Desk: support@imdx.org · SLA 99.9%
-                </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowSupportNotice((prev) => !prev)}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-[12.5px] text-[#475569] hover:text-[#102529] cursor-pointer"
+                  >
+                    <span className="inline-flex items-center justify-center size-4 rounded-full border border-[#94a3b8] text-[10px]">
+                      ?
+                    </span>
+                    <span>Help &amp; Support</span>
+                  </button>
+                  {showSupportNotice && (
+                    <p className="px-2 text-[11px] text-[#059669]">
+                      Desk: support@imdx.org · SLA 99.9%
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}

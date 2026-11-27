@@ -302,9 +302,12 @@ function resolveInitialLocation(): {
     if (path.includes('/participants')) adminNav = 'participants';
     else if (path.includes('/applications')) adminNav = 'applications';
     else if (path.includes('/policies')) adminNav = 'policies';
-    else if (path.includes('/audit') || path.includes('/verify')) adminNav = 'audit-log';
+    else if (path.includes('/verify')) adminNav = 'verify-audit';
+    else if (path.includes('/audit')) adminNav = 'audit-log';
     else if (path.includes('/purposes')) adminNav = 'purposes';
-    else if (path.includes('/capacity') || path.includes('/cluster-health')) adminNav = 'capacity';
+    else if (path.includes('/cluster-health')) adminNav = 'cluster-health';
+    else if (path.includes('/capacity')) adminNav = 'capacity';
+    else if (path.includes('/settings')) adminNav = 'settings';
 
     if (isPlatformConfigured() && !hasAdmin) {
       return {
@@ -1109,6 +1112,7 @@ export function App() {
                 ? `${userSession.role === 'PROV' ? 'Provider' : 'Consumer'} · ${userSession.bpn || userSession.orgRole}`
                 : 'Organization Admin'
           }
+          pendingApplicationsCount={store.applicationStatus === 'Under Review' ? 1 : 0}
           isBackendLive={isBackendConfigured()}
           isAuthenticated={isAuthenticated}
           onSignInClick={() => setIsAuthModalOpen(true)}
