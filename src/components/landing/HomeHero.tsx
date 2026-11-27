@@ -547,19 +547,6 @@ export function HomeHero({ onStartOnboarding, onOpenWorkspace }: HomeHeroProps) 
       <section className="page-transition" ref={transitionRef} aria-label="Introduction and page transition">
        <div className="page-transition-sticky">
       <section className="hero-screen" aria-label="IMDX introduction">
-        <video
-          ref={backgroundVideoRef}
-          className="display-video"
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
-          poster="/images/hero-poster.svg"
-          aria-hidden="true"
-        >
-          <source src="/videos/hero-bg-loop.mp4" type="video/mp4" />
-        </video>
         <div className="display-dim" aria-hidden="true" />
         <div className="display-dim-expanded" aria-hidden="true" />
         <div className="floating-accents" aria-hidden="true">
@@ -569,8 +556,8 @@ export function HomeHero({ onStartOnboarding, onOpenWorkspace }: HomeHeroProps) 
           <span className="floating-plus floating-plus-four" />
         </div>
 
-        {/* Top-left IMDX logo + top-right action buttons */}
-        <div className="hero-top-bar">
+        {/* Balanced top bar: IMDX brand top-left, calm utility nav top-right */}
+        <header className="hero-top-bar">
           <a
             href="#imdx-overview"
             onClick={(event) => {
@@ -589,57 +576,127 @@ export function HomeHero({ onStartOnboarding, onOpenWorkspace }: HomeHeroProps) 
             />
           </a>
 
-          <div className="hero-video-controls">
+          <nav className="hero-video-controls" aria-label="Primary landing navigation">
+            <a
+              href="#imdx-overview"
+              className="hero-nav-link"
+              onClick={(event) => {
+                event.preventDefault();
+                navigateToSection("imdx");
+              }}
+            >
+              Overview
+            </a>
+            <a
+              href="#intelligence-layer"
+              className="hero-nav-link"
+              onClick={(event) => {
+                event.preventDefault();
+                navigateToSection("intelligence");
+              }}
+            >
+              Intelligence
+            </a>
             <button className="hero-video-button" type="button" onClick={onOpenWorkspace}>
               Member Workspace
             </button>
-            <button
-              className="hero-video-button hero-video-button-accent imdx-btn-primary"
-              type="button"
-              onClick={onStartOnboarding}
-            >
-              Start Application →
-            </button>
-            <button
-              className="hero-video-button hero-video-button-primary"
-              type="button"
-              onClick={openFullVideo}
-            >
-              Watch complete video
-            </button>
-          </div>
-        </div>
+          </nav>
+        </header>
 
-        {/* Fresh luminous hero stage with repositioned description */}
+        {/* Split hero: editorial left column + live video preview showcase on right */}
         <div className="intro-content">
-          <div className="hero-stage-card">
-            <span className="hero-eyebrow">Sovereign Mobility Dataspace · Eclipse Tractus-X</span>
-            <h1 className="hero-headline">
-              India Mobility <span className="imdx-gradient-text">Data Exchange</span>
-            </h1>
-            <div className="summary-frame">
-              <p className="imdx-summary">{summary}</p>
+          <div className="hero-split-grid">
+            <div className="hero-stage-card">
+              <span className="hero-eyebrow">Sovereign Mobility Dataspace · Built by Tecmotiv</span>
+              <h1 className="hero-headline">
+                India Mobility <span className="imdx-gradient-text">Data Exchange</span>
+              </h1>
+              <div className="summary-frame">
+                <p className="imdx-summary">{summary}</p>
+              </div>
+              <div className="hero-cta-row">
+                <button
+                  type="button"
+                  onClick={onStartOnboarding}
+                  className="hero-cta-main imdx-btn-primary"
+                >
+                  Start Application →
+                </button>
+                <button
+                  type="button"
+                  onClick={openFullVideo}
+                  className="hero-cta-secondary"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <path d="M4.25 3.1a.9.9 0 0 1 1.36-.77l7.5 4.4a.9.9 0 0 1 0 1.54l-7.5 4.4A.9.9 0 0 1 4.25 11.9V3.1Z" />
+                  </svg>
+                  Watch complete video
+                </button>
+              </div>
+              <div className="hero-trust-pills" aria-label="Core architecture pillars">
+                <span>Peer-to-Peer EDC Transfers</span>
+                <span>DPDP Act 2023 Consent</span>
+                <span>Signed Contract Ledger</span>
+              </div>
             </div>
-            <div className="hero-cta-row">
-              <button
-                type="button"
-                onClick={onStartOnboarding}
-                className="hero-cta-main imdx-btn-primary"
-              >
-                Start Application →
-              </button>
-              <button
-                type="button"
-                onClick={onOpenWorkspace}
-                className="hero-cta-secondary"
-              >
-                Open Member Workspace
-              </button>
-            </div>
-            <div className="hero-trust-pills" aria-label="Core architecture pillars">
-              <span>Peer-to-Peer EDC Transfers</span>
-              <span>DPDP Act 2023 Consent</span>
-              <span>Signed Contract Ledger</span>
+
+            <div className="hero-right-showcase">
+              <div className="hero-video-card">
+                <div className="hero-video-card-chrome">
+                  <span className="hero-video-live-badge">
+                    <span className="hero-video-live-dot" aria-hidden="true" />
+                    IMDX Ecosystem Preview
+                  </span>
+                  <span className="hero-video-standard">Eclipse Tractus-X · Gaia-X</span>
+                </div>
+                <div className="hero-video-viewport">
+                  <video
+                    ref={backgroundVideoRef}
+                    className="display-video"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    preload="auto"
+                    poster="/images/hero-poster.svg"
+                    aria-hidden="true"
+                  >
+                    <source src="/videos/hero-bg-loop.mp4" type="video/mp4" />
+                  </video>
+                  <div className="hero-video-scrim" aria-hidden="true" />
+                  <button
+                    type="button"
+                    className="hero-video-play-overlay"
+                    onClick={openFullVideo}
+                    aria-label="Play full IMDX walkthrough video"
+                  >
+                    <span className="hero-video-play-circle" aria-hidden="true">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7.5 5.65c0-.72.78-1.17 1.4-.81l10.2 5.95a.93.93 0 0 1 0 1.62L8.9 18.36c-.62.36-1.4-.09-1.4-.81V5.65Z" />
+                      </svg>
+                    </span>
+                    <span className="hero-video-play-copy">
+                      <strong>Watch complete video</strong>
+                      <span>How sovereign mobility exchange works</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="hero-highlight-strip" aria-label="Exchange guarantees">
+                <div className="hero-highlight-cell">
+                  <strong>Direct P2P</strong>
+                  <span>Data never rests on broker servers</span>
+                </div>
+                <div className="hero-highlight-cell">
+                  <strong>Signed Terms</strong>
+                  <span>ODRL policies enforced per transfer</span>
+                </div>
+                <div className="hero-highlight-cell">
+                  <strong>Verified IDs</strong>
+                  <span>Cryptographic participant credentials</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
