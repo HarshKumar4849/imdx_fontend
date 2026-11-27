@@ -42,6 +42,7 @@ import {
   canonicalContractObject,
   cygnusApi,
   isAgentConfigured,
+  isAgentHost,
   isPlatformConfigured,
   loadAdminSession,
   loadApplicationToken,
@@ -69,6 +70,7 @@ export {
   ApiError,
   cygnusApi,
   isAgentConfigured,
+  isAgentHost,
   isPlatformConfigured,
   loadAdminSession,
   loadApplicationToken,
@@ -384,17 +386,26 @@ export const imdxApi = {
       acceptedPolicies[acc.slug] = true;
     }
 
+    const missing = app.missing ?? [];
     const stage: OnboardingState['stage'] =
       app.status === 'SUBMITTED' ||
       app.status === 'ACTIVE' ||
       app.status === 'PROVISIONING' ||
-      app.status === 'APPROVED_WAITING'
+      app.status === 'APPROVED_WAITING' ||
+      app.status === 'SETUP_FAILED' ||
+      app.status === 'REJECTED'
         ? 'submitted'
-        : !app.organization
+        : !app.organization || missing.includes('organization')
           ? 1
-          : !app.representative
+          : !app.representative || missing.includes('representative')
             ? 2
-            : 4;
+            : missing.some((m) => m.startsWith('documents.'))
+              ? 4
+              : missing.some((m) => m === 'policies' || m.startsWith('policies.'))
+                ? 5
+                : app.status === 'NEEDS_INFO' && app.needsInfo
+                  ? 1
+                  : 6;
 
     return {
       onboarding: {
@@ -434,11 +445,17 @@ export const imdxApi = {
         acceptedPolicies,
       },
       applicationStatus: mapAppStatus(app.status),
-      reviewNote: app.needsInfo?.note || app.rejectNote || '',
+      reviewNote: app.needsInfo?.note || app.rejectNote || app.rejectReason || '',
     };
   },
 
-  async startApplication(data: { fullName: string; workEmail: string; countryCode: string; phoneNumber: string }): Promise<void> {
+  async startApplication(data: {
+    fullName: string;
+    workEmail: string;
+    countryCode: string;
+    phoneNumber: string;
+    captchaToken?: string;
+  }): Promise<void> {
     if (!isPlatformConfigured()) return;
     const digits = data.phoneNumber.replace(/\D/g, '');
     const mobile = digits ? `${data.countryCode}${digits}` : '';
@@ -446,6 +463,7 @@ export const imdxApi = {
       name: data.fullName.trim(),
       email: data.workEmail.trim(),
       mobile,
+      captchaToken: data.captchaToken,
     });
   },
 

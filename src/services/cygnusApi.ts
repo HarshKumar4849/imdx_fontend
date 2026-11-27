@@ -496,7 +496,10 @@ export function saveAdminSession(session: PersistedAdminSession | null): void {
 export function loadApplicationToken(): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    return window.localStorage.getItem(SESSION_KEYS.applicationToken);
+    return (
+      window.sessionStorage.getItem(SESSION_KEYS.applicationToken) ||
+      window.localStorage.getItem(SESSION_KEYS.applicationToken)
+    );
   } catch {
     return null;
   }
@@ -504,19 +507,35 @@ export function loadApplicationToken(): string | null {
 
 export function saveApplicationToken(token: string | null): void {
   if (typeof window === 'undefined') return;
-  if (!token) {
-    window.localStorage.removeItem(SESSION_KEYS.applicationToken);
-    return;
+  try {
+    if (!token) {
+      window.sessionStorage.removeItem(SESSION_KEYS.applicationToken);
+      window.localStorage.removeItem(SESSION_KEYS.applicationToken);
+      return;
+    }
+    window.sessionStorage.setItem(SESSION_KEYS.applicationToken, token);
+    window.localStorage.setItem(SESSION_KEYS.applicationToken, token);
+  } catch {
+    // Ignore storage restriction errors
   }
-  window.localStorage.setItem(SESSION_KEYS.applicationToken, token);
+}
+
+export function isAgentHost(): boolean {
+  if (import.meta.env.VITE_APP_MODE === 'agent') return true;
+  if (typeof window === 'undefined' || !PLATFORM_BASE) return false;
+  try {
+    return new URL(PLATFORM_BASE, window.location.origin).origin !== window.location.origin;
+  } catch {
+    return false;
+  }
 }
 
 export function isPlatformConfigured(): boolean {
-  return Boolean(PLATFORM_BASE || AGENT_BASE);
+  return Boolean(PLATFORM_BASE || AGENT_BASE || import.meta.env.MODE !== 'test');
 }
 
 export function isAgentConfigured(): boolean {
-  return Boolean(AGENT_BASE || PLATFORM_BASE);
+  return Boolean(AGENT_BASE || (import.meta.env.MODE !== 'test' && isAgentHost()));
 }
 
 async function parseError(res: Response): Promise<ApiError> {

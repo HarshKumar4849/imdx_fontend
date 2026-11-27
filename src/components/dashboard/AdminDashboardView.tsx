@@ -5,6 +5,9 @@ import {
   cygnusApi,
   isPlatformConfigured,
   loadAdminSession,
+  type CygnusAdminApplicationSummary,
+  type CygnusAdminStats,
+  type CygnusApplication,
   type CygnusBreach,
   type CygnusCapacity,
   type CygnusClusterHealth,
@@ -142,10 +145,36 @@ export function AdminDashboardView({
   const [breaches, setBreaches] = useState<CygnusBreach[]>([]);
   const [breachTitle, setBreachTitle] = useState('');
   const [adminActionNote, setAdminActionNote] = useState('');
+  const [adminStats, setAdminStats] = useState<CygnusAdminStats | null>(null);
+  const [liveApps, setLiveApps] = useState<CygnusAdminApplicationSummary[] | null>(null);
+  const [appStatusFilter, setAppStatusFilter] = useState('');
+  const [inspectDetail, setInspectDetail] = useState<(CygnusApplication & { id: string }) | null>(null);
+  const [requestInfoItems, setRequestInfoItems] = useState<string[]>(['Organization details']);
+  const [rejectReason, setRejectReason] = useState('INCOMPLETE_DOCUMENTS');
+
+  const isLiveAdmin = isPlatformConfigured() && Boolean(loadAdminSession()?.token);
+
+  const refreshLiveApplications = () => {
+    if (!isLiveAdmin) return;
+    void cygnusApi
+      .listAdminApplications(appStatusFilter || undefined)
+      .then((list) => setLiveApps(list))
+      .catch(() => undefined);
+  };
 
   useEffect(() => {
     if (!isPlatformConfigured() || !loadAdminSession()?.token) return;
     let active = true;
+    if (activeNav === 'dashboard' || activeNav === 'applications') {
+      void Promise.allSettled([
+        cygnusApi.getAdminStats(),
+        cygnusApi.listAdminApplications(appStatusFilter || undefined),
+      ]).then(([statsRes, appsRes]) => {
+        if (!active) return;
+        if (statsRes.status === 'fulfilled') setAdminStats(statsRes.value);
+        if (appsRes.status === 'fulfilled') setLiveApps(appsRes.value);
+      });
+    }
     if (activeNav === 'capacity') {
       void Promise.allSettled([
         cygnusApi.getCapacity(),
@@ -166,7 +195,7 @@ export function AdminDashboardView({
     return () => {
       active = false;
     };
-  }, [activeNav]);
+  }, [activeNav, appStatusFilter]);
 
   const orgName =
     onboardingState.organization.legalName || 'ABC Mobility Technologies Pvt. Ltd.';
@@ -279,7 +308,11 @@ export function AdminDashboardView({
   };
 
   const meta = SECTION_META[activeNav];
-  const pendingApprovals = applicationStatus === 'Under Review' ? 1 : 0;
+  const pendingApprovals = adminStats
+    ? (adminStats.applicationsWaiting ?? 0)
+    : applicationStatus === 'Under Review'
+      ? 1
+      : 0;
 
   return (
     <div className="space-y-4">
@@ -293,6 +326,11 @@ export function AdminDashboardView({
             </h1>
             <p className="mt-0.5 text-[13.5px] sm:text-[14px] text-[#59666d]">{meta.subtitle}</p>
           </div>
+          {adminActionNote && (
+            <p className="rounded-full bg-[#e5faf6] border border-[#00a5c3]/25 px-3.5 py-1 text-[12px] font-medium text-[#002456]">
+              {adminActionNote}
+            </p>
+          )}
         </div>
       </div>
 
@@ -303,22 +341,23 @@ export function AdminDashboardView({
             {[
               {
                 label: 'Total Datasets',
-                value: String(datasets.length).padStart(2, '0'),
+                value: String(adminStats ? adminStats.datasets : datasets.length).padStart(2, '0'),
                 boxBg: 'bg-[#fff1e2]',
                 dot: 'bg-[#f59e0b]',
               },
               {
                 label: 'Active Participants',
-                value: String(participants.filter((p) => p.status === 'Active').length).padStart(
-                  2,
-                  '0',
-                ),
+                value: String(
+                  adminStats
+                    ? adminStats.participants
+                    : participants.filter((p) => p.status === 'Active').length,
+                ).padStart(2, '0'),
                 boxBg: 'bg-[#e6ecff]',
                 dot: 'bg-[#3553ab]',
               },
               {
-                label: 'Active Subscriptions',
-                value: String(subscriptionsCount).padStart(2, '0'),
+                label: adminStats ? 'Platform Orders' : 'Active Subscriptions',
+                value: String(adminStats ? adminStats.orders : subscriptionsCount).padStart(2, '0'),
                 boxBg: 'bg-[#e9fffa] border border-[#f1f1f1]',
                 dot: 'bg-[#32c4a6]',
               },
@@ -516,9 +555,29 @@ export function AdminDashboardView({
             <h2 className="text-[15.5px] font-semibold text-[#102529]">
               Onboarding Applications Queue
             </h2>
-            {reviewNote && (
-              <p className="text-[12.5px] text-[#64748b]">Latest note: {reviewNote}</p>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {isLiveAdmin && (
+                <select
+                  aria-label="Filter applications by status"
+                  value={appStatusFilter}
+                  onChange={(e) => setAppStatusFilter(e.target.value)}
+                  className="h-[32px] rounded-full border border-[#cbd5e1] bg-white px-3 text-[12px] text-[#102529]"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="SUBMITTED">Submitted</option>
+                  <option value="NEEDS_INFO">Needs Info</option>
+                  <option value="DRAFT">Draft</option>
+                  <option value="APPROVED_WAITING">Approved (Waiting)</option>
+                  <option value="PROVISIONING">Provisioning</option>
+                  <option value="SETUP_FAILED">Setup Failed</option>
+                  <option value="REJECTED">Rejected</option>
+                  <option value="ACTIVE">Active</option>
+                </select>
+              )}
+              {reviewNote && (
+                <p className="text-[12.5px] text-[#64748b]">Latest note: {reviewNote}</p>
+              )}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[780px]">
@@ -527,45 +586,137 @@ export function AdminDashboardView({
                   <th className="py-2.5 px-3.5 font-semibold whitespace-nowrap">Application #</th>
                   <th className="py-2.5 px-3.5 font-semibold">Organization</th>
                   <th className="py-2.5 px-3.5 font-semibold">Representative</th>
-                  <th className="py-2.5 px-3.5 font-semibold whitespace-nowrap">Policies</th>
+                  <th className="py-2.5 px-3.5 font-semibold whitespace-nowrap">
+                    {isLiveAdmin ? 'Submitted' : 'Policies'}
+                  </th>
                   <th className="py-2.5 px-3.5 font-semibold whitespace-nowrap">Status</th>
                   <th className="py-2.5 px-3.5 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f1f5f9] text-[13px] text-[#475569]">
-                <tr className="hover:bg-[#f8fafc]">
-                  <td className="py-3 px-3.5 font-mono text-[12px] font-semibold text-[#002456] whitespace-nowrap">
-                    {onboardingState.applicationNumber}
-                  </td>
-                  <td className="py-3 px-3.5 font-semibold text-[#102529]">{orgName}</td>
-                  <td className="py-3 px-3.5 whitespace-nowrap">{repEmail}</td>
-                  <td className="py-3 px-3.5 font-mono text-[12px] whitespace-nowrap">
-                    {acceptedPoliciesCount} / {POLICIES.length}
-                  </td>
-                  <td className="py-3 px-3.5 whitespace-nowrap">
-                    <StatusBadge status={applicationStatus} />
-                  </td>
-                  <td className="py-3 px-3.5 text-right whitespace-nowrap">
-                    <div className="inline-flex items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setIsInspectModalOpen(true)}
-                        className="h-[32px] px-3.5 rounded-full border border-[#cbd5e1] bg-white text-[#102529] text-[12px] font-semibold hover:bg-[#f8fafc] cursor-pointer whitespace-nowrap"
-                      >
-                        Inspect Dossier
-                      </button>
-                      {applicationStatus !== 'Approved' && (
+                {isLiveAdmin && liveApps ? (
+                  liveApps.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-[#64748b]">
+                        No applications found for this filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    liveApps.map((app) => (
+                      <tr key={app.id} className="hover:bg-[#f8fafc]">
+                        <td className="py-3 px-3.5 font-mono text-[12px] font-semibold text-[#002456] whitespace-nowrap">
+                          {app.number}
+                        </td>
+                        <td className="py-3 px-3.5 font-semibold text-[#102529]">
+                          {app.orgName || '—'}
+                        </td>
+                        <td className="py-3 px-3.5 whitespace-nowrap">
+                          {app.contactName || app.email || '—'}
+                        </td>
+                        <td className="py-3 px-3.5 font-mono text-[12px] whitespace-nowrap">
+                          {app.submittedAt ? app.submittedAt.slice(0, 10) : 'Draft'}
+                        </td>
+                        <td className="py-3 px-3.5 whitespace-nowrap">
+                          <StatusBadge
+                            status={
+                              app.status === 'ACTIVE' ||
+                              app.status === 'APPROVED_WAITING' ||
+                              app.status === 'PROVISIONING'
+                                ? 'Approved'
+                                : app.status === 'NEEDS_INFO' ||
+                                    app.status === 'REJECTED' ||
+                                    app.status === 'SETUP_FAILED'
+                                  ? 'Changes Requested'
+                                  : 'Under Review'
+                            }
+                          />
+                        </td>
+                        <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDraftNote('');
+                                void cygnusApi
+                                  .getAdminApplication(app.id)
+                                  .then((detail) => {
+                                    setInspectDetail(detail);
+                                    setIsInspectModalOpen(true);
+                                  })
+                                  .catch((err) =>
+                                    setAdminActionNote(
+                                      err instanceof Error ? err.message : 'Unable to load application.',
+                                    ),
+                                  );
+                              }}
+                              className="h-[32px] px-3.5 rounded-full border border-[#cbd5e1] bg-white text-[#102529] text-[12px] font-semibold hover:bg-[#f8fafc] cursor-pointer whitespace-nowrap"
+                            >
+                              Inspect Dossier
+                            </button>
+                            {app.status === 'SUBMITTED' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void cygnusApi
+                                    .approveAdminApplication(app.id)
+                                    .then(() => {
+                                      setAdminActionNote(`Approved ${app.number}`);
+                                      refreshLiveApplications();
+                                    })
+                                    .catch((err) =>
+                                      setAdminActionNote(
+                                        err instanceof Error ? err.message : 'Approval failed.',
+                                      ),
+                                    );
+                                }}
+                                className="h-[32px] px-3.5 rounded-full bg-[#22b59b] hover:bg-[#1ca18a] text-white text-[12px] font-semibold cursor-pointer whitespace-nowrap"
+                              >
+                                Approve
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )
+                ) : (
+                  <tr className="hover:bg-[#f8fafc]">
+                    <td className="py-3 px-3.5 font-mono text-[12px] font-semibold text-[#002456] whitespace-nowrap">
+                      {onboardingState.applicationNumber}
+                    </td>
+                    <td className="py-3 px-3.5 font-semibold text-[#102529]">{orgName}</td>
+                    <td className="py-3 px-3.5 whitespace-nowrap">{repEmail}</td>
+                    <td className="py-3 px-3.5 font-mono text-[12px] whitespace-nowrap">
+                      {acceptedPoliciesCount} / {POLICIES.length}
+                    </td>
+                    <td className="py-3 px-3.5 whitespace-nowrap">
+                      <StatusBadge status={applicationStatus} />
+                    </td>
+                    <td className="py-3 px-3.5 text-right whitespace-nowrap">
+                      <div className="inline-flex items-center justify-end gap-2">
                         <button
                           type="button"
-                          onClick={() => handleApplicationDecision('Approved')}
-                          className="h-[32px] px-3.5 rounded-full bg-[#22b59b] hover:bg-[#1ca18a] text-white text-[12px] font-semibold cursor-pointer whitespace-nowrap"
+                          onClick={() => {
+                            setInspectDetail(null);
+                            setIsInspectModalOpen(true);
+                          }}
+                          className="h-[32px] px-3.5 rounded-full border border-[#cbd5e1] bg-white text-[#102529] text-[12px] font-semibold hover:bg-[#f8fafc] cursor-pointer whitespace-nowrap"
                         >
-                          Approve
+                          Inspect Dossier
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                        {applicationStatus !== 'Approved' && (
+                          <button
+                            type="button"
+                            onClick={() => handleApplicationDecision('Approved')}
+                            className="h-[32px] px-3.5 rounded-full bg-[#22b59b] hover:bg-[#1ca18a] text-white text-[12px] font-semibold cursor-pointer whitespace-nowrap"
+                          >
+                            Approve
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1150,46 +1301,146 @@ export function AdminDashboardView({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-mono text-[11.5px] text-[#64748b]">
-                    {onboardingState.applicationNumber}
+                    {inspectDetail ? inspectDetail.number : onboardingState.applicationNumber}
                   </p>
                   <h3 id="dossier-modal-title" className="mt-0.5 text-[18px] font-bold text-[#102529]">
-                    {orgName}
+                    {inspectDetail?.organization?.legalName || orgName}
                   </h3>
                 </div>
-                <StatusBadge status={applicationStatus} />
+                <StatusBadge
+                  status={
+                    inspectDetail
+                      ? inspectDetail.status === 'ACTIVE' ||
+                        inspectDetail.status === 'APPROVED_WAITING' ||
+                        inspectDetail.status === 'PROVISIONING'
+                        ? 'Approved'
+                        : inspectDetail.status === 'NEEDS_INFO' ||
+                            inspectDetail.status === 'REJECTED' ||
+                            inspectDetail.status === 'SETUP_FAILED'
+                          ? 'Changes Requested'
+                          : 'Under Review'
+                      : applicationStatus
+                  }
+                />
               </div>
 
               <div className="imdx-subbox grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-[12.5px] rounded-[10px] p-3.5">
                 <div>
                   <p className="text-[#64748b]">PAN / GSTIN</p>
                   <p className="mt-0.5 font-semibold text-[#102529]">
-                    {onboardingState.organization.pan || 'ABCDE1234G'} /{' '}
-                    {onboardingState.organization.gstin || '29ABCDE1234F1Z5'}
+                    {inspectDetail
+                      ? `${inspectDetail.organization?.pan || '—'} / ${inspectDetail.organization?.gstin || '—'}`
+                      : `${onboardingState.organization.pan || 'ABCDE1234G'} / ${onboardingState.organization.gstin || '29ABCDE1234F1Z5'}`}
                   </p>
                 </div>
                 <div>
                   <p className="text-[#64748b]">Authorized Representative</p>
                   <p className="mt-0.5 font-semibold text-[#102529]">
-                    {onboardingState.representative.name || 'Sakshi Shinde'} ({repEmail})
+                    {inspectDetail
+                      ? `${inspectDetail.representative?.name || inspectDetail.contactName || '—'} (${inspectDetail.representative?.email || inspectDetail.email})`
+                      : `${onboardingState.representative.name || 'Sakshi Shinde'} (${repEmail})`}
                   </p>
                 </div>
                 <div className="sm:col-span-2">
                   <p className="text-[#64748b]">Documents Submitted</p>
-                  <ul className="mt-1 space-y-1 text-[#102529]">
-                    {DOC_KEYS.map(({ key, label }) => {
-                      const doc = onboardingState.documents[key];
-                      return (
-                        <li key={key} className="flex justify-between gap-2">
-                          <span>{label}</span>
-                          <span className="font-medium">
-                            {doc.fileName ? `${doc.fileName} (${doc.fileSizeLabel})` : 'Pending upload'}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  {inspectDetail ? (
+                    <ul className="mt-1 space-y-1 text-[#102529]">
+                      {inspectDetail.documents.length === 0 ? (
+                        <li className="text-[#64748b]">No documents uploaded.</li>
+                      ) : (
+                        inspectDetail.documents.map((doc) => (
+                          <li key={doc.id} className="flex items-center justify-between gap-2">
+                            <span>
+                              {doc.kind}: {doc.filename}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void cygnusApi
+                                  .getAdminDocumentUrl(inspectDetail.id, doc.id)
+                                  .then(({ url }) => {
+                                    if (url.startsWith('https://') || url.startsWith('http://')) {
+                                      window.open(url, '_blank', 'noopener');
+                                    }
+                                  });
+                              }}
+                              className="text-[12px] font-semibold text-[#008fa7] hover:underline cursor-pointer"
+                            >
+                              Download
+                            </button>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  ) : (
+                    <ul className="mt-1 space-y-1 text-[#102529]">
+                      {DOC_KEYS.map(({ key, label }) => {
+                        const doc = onboardingState.documents[key];
+                        return (
+                          <li key={key} className="flex justify-between gap-2">
+                            <span>{label}</span>
+                            <span className="font-medium">
+                              {doc.fileName ? `${doc.fileName} (${doc.fileSizeLabel})` : 'Pending upload'}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
               </div>
+
+              {inspectDetail && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
+                  <div>
+                    <p className="font-medium text-[#102529] mb-1">Request Info Items</p>
+                    <div className="space-y-1">
+                      {[
+                        'Organization details',
+                        'Authorised representative',
+                        'Incorporation certificate',
+                        'PAN',
+                        'GST certificate',
+                        'Authorisation letter',
+                      ].map((item) => (
+                        <label key={item} className="flex items-center gap-1.5 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={requestInfoItems.includes(item)}
+                            onChange={(e) => {
+                              setRequestInfoItems((prev) =>
+                                e.target.checked ? [...prev, item] : prev.filter((x) => x !== item),
+                              );
+                            }}
+                          />
+                          <span>{item}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="admin-reject-reason"
+                      className="block font-medium text-[#102529] mb-1"
+                    >
+                      Reject Reason Code
+                    </label>
+                    <select
+                      id="admin-reject-reason"
+                      value={rejectReason}
+                      onChange={(e) => setRejectReason(e.target.value)}
+                      className="w-full h-[34px] rounded-[8px] border border-[#cbd5e1] bg-white px-2 text-[12px]"
+                    >
+                      <option value="INCOMPLETE_DOCUMENTS">INCOMPLETE_DOCUMENTS</option>
+                      <option value="REGISTRATION_UNVERIFIABLE">REGISTRATION_UNVERIFIABLE</option>
+                      <option value="AUTHORITY_NOT_SHOWN">AUTHORITY_NOT_SHOWN</option>
+                      <option value="POLICIES_NOT_ACCEPTED">POLICIES_NOT_ACCEPTED</option>
+                      <option value="DUPLICATE">DUPLICATE</option>
+                      <option value="LEGAL_FLAG">LEGAL_FLAG</option>
+                    </select>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label
@@ -1218,7 +1469,30 @@ export function AdminDashboardView({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleApplicationDecision('Changes Requested')}
+                  onClick={() => {
+                    if (inspectDetail) {
+                      const items =
+                        requestInfoItems.length > 0 ? requestInfoItems : ['Organization details'];
+                      void cygnusApi
+                        .requestAdminApplicationInfo(
+                          inspectDetail.id,
+                          items,
+                          draftNote.trim() || 'Please review highlighted items.',
+                        )
+                        .then(() => {
+                          setAdminActionNote(`Requested info for ${inspectDetail.number}`);
+                          setIsInspectModalOpen(false);
+                          refreshLiveApplications();
+                        })
+                        .catch((err) =>
+                          setAdminActionNote(
+                            err instanceof Error ? err.message : 'Request info failed.',
+                          ),
+                        );
+                      return;
+                    }
+                    handleApplicationDecision('Changes Requested');
+                  }}
                   className="h-[36px] px-4 rounded-full border border-[#d97706] text-[#d97706] hover:bg-[#fffbeb] text-[12.5px] font-semibold cursor-pointer"
                 >
                   Request Changes
@@ -1226,19 +1500,24 @@ export function AdminDashboardView({
                 <button
                   type="button"
                   onClick={() => {
-                    if (isPlatformConfigured() && loadAdminSession()?.token) {
+                    if (inspectDetail) {
                       void cygnusApi
-                        .listAdminApplications()
-                        .then((list) => {
-                          const app = list.find((a) => a.number === onboardingState.applicationNumber);
-                          if (app) {
-                            return cygnusApi.rejectAdminApplication(
-                              app.id,
-                              'Governance verification incomplete',
-                              draftNote.trim() || 'Rejected by IMDX Admin.',
-                            );
-                          }
-                        });
+                        .rejectAdminApplication(
+                          inspectDetail.id,
+                          rejectReason,
+                          draftNote.trim() || 'Rejected by IMDX Admin.',
+                        )
+                        .then(() => {
+                          setAdminActionNote(`Rejected ${inspectDetail.number}`);
+                          setIsInspectModalOpen(false);
+                          refreshLiveApplications();
+                        })
+                        .catch((err) =>
+                          setAdminActionNote(
+                            err instanceof Error ? err.message : 'Rejection failed.',
+                          ),
+                        );
+                      return;
                     }
                     handleApplicationDecision('Changes Requested');
                   }}
@@ -1248,7 +1527,24 @@ export function AdminDashboardView({
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleApplicationDecision('Approved')}
+                  onClick={() => {
+                    if (inspectDetail) {
+                      void cygnusApi
+                        .approveAdminApplication(inspectDetail.id)
+                        .then(() => {
+                          setAdminActionNote(`Approved ${inspectDetail.number}`);
+                          setIsInspectModalOpen(false);
+                          refreshLiveApplications();
+                        })
+                        .catch((err) =>
+                          setAdminActionNote(
+                            err instanceof Error ? err.message : 'Approval failed.',
+                          ),
+                        );
+                      return;
+                    }
+                    handleApplicationDecision('Approved');
+                  }}
                   className="h-[36px] px-5 rounded-full imdx-btn-primary text-[12.5px] font-semibold cursor-pointer"
                 >
                   Approve &amp; Provision

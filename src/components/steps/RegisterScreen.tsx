@@ -2,17 +2,31 @@ import { useState } from 'react';
 import type { RegistrationData } from '../../types/onboarding';
 import { FieldLabel } from '../FormField';
 import { PhoneInput } from '../PhoneInput';
+import { Turnstile } from '../Turnstile';
 
 interface RegisterScreenProps {
   data: RegistrationData;
   onChange: (data: RegistrationData) => void;
-  onSubmit: () => void;
+  onSubmit: (captchaToken?: string) => Promise<boolean> | void;
+  linkSentEmail?: string | null;
+  onTrackApplication?: () => void;
+  onResetLinkSent?: () => void;
 }
 
-export function RegisterScreen({ data, onChange, onSubmit }: RegisterScreenProps) {
+export function RegisterScreen({
+  data,
+  onChange,
+  onSubmit,
+  linkSentEmail,
+  onTrackApplication,
+  onResetLinkSent,
+}: RegisterScreenProps) {
   const [errors, setErrors] = useState<Partial<Record<keyof RegistrationData, string>>>({});
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
 
-  const validateAndSubmit = (e: React.FormEvent) => {
+  const validateAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const nextErrors: Partial<Record<keyof RegistrationData, string>> = {};
 
@@ -32,9 +46,59 @@ export function RegisterScreen({ data, onChange, onSubmit }: RegisterScreenProps
 
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length === 0) {
-      onSubmit();
+      setSubmitting(true);
+      try {
+        const ok = await onSubmit(captchaToken ?? undefined);
+        if (ok === false) {
+          setCaptchaToken(null);
+          setCaptchaAttempt((n) => n + 1);
+        }
+      } finally {
+        setSubmitting(false);
+      }
     }
   };
+
+  if (linkSentEmail) {
+    return (
+      <div className="min-h-[calc(100vh-56px)] flex items-center justify-center px-4 py-6">
+        <div className="imdx-card rounded-[14px] w-full max-w-[480px] overflow-hidden">
+          <div className="imdx-rule-animate h-[3px] w-full bg-gradient-to-r from-[#45c0b2] via-[#00a5c3] to-[#3987cf]" />
+          <div className="px-6 py-7 space-y-4">
+            <p className="imdx-kicker">IMDX / VERIFICATION LINK SENT</p>
+            <h1 className="text-[22px] text-[#102529] leading-tight">
+              Check your email for your <span className="imdx-gradient-text">private link</span>
+            </h1>
+            <p className="text-[13.5px] text-[#59666d] leading-relaxed">
+              If <span className="font-semibold text-[#102529]">{linkSentEmail}</span> can start an
+              application, we have sent a private continuation link to complete your organization
+              onboarding (Steps 1–6). It may take a minute to arrive.
+            </p>
+            <div className="flex flex-wrap items-center gap-2.5 pt-2">
+              {onTrackApplication && (
+                <button
+                  type="button"
+                  onClick={onTrackApplication}
+                  className="h-[38px] px-4 rounded-full imdx-btn-primary text-[13px] font-semibold cursor-pointer"
+                >
+                  Track Application →
+                </button>
+              )}
+              {onResetLinkSent && (
+                <button
+                  type="button"
+                  onClick={onResetLinkSent}
+                  className="h-[38px] px-4 rounded-full border border-[#c1c1c1] bg-white text-[13px] font-semibold text-[#102529] hover:bg-[#f8fafc] cursor-pointer"
+                >
+                  Use another email
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[calc(100vh-56px)] flex items-center justify-center px-4 py-6">
@@ -143,12 +207,15 @@ export function RegisterScreen({ data, onChange, onSubmit }: RegisterScreenProps
                 />
               </div>
 
+              <Turnstile key={captchaAttempt} onToken={setCaptchaToken} />
+
               <div className="pt-1">
                 <button
                   type="submit"
-                  className="w-full h-[42px] rounded-[45px] imdx-btn-primary text-[15px] font-semibold cursor-pointer"
+                  disabled={!captchaToken || submitting}
+                  className="w-full h-[42px] rounded-[45px] imdx-btn-primary text-[15px] font-semibold cursor-pointer disabled:opacity-60"
                 >
-                  Start Application →
+                  {submitting ? 'Starting Application…' : 'Start Application →'}
                 </button>
               </div>
             </div>

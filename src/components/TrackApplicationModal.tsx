@@ -3,6 +3,7 @@ import { cygnusApi, isPlatformConfigured } from '../services/cygnusApi';
 import type { ApplicationReviewStatus } from '../types/dashboard';
 import type { OnboardingStage } from '../types/onboarding';
 import { ModalPortal } from './ModalPortal';
+import { Turnstile } from './Turnstile';
 
 interface TrackApplicationModalProps {
   isOpen: boolean;
@@ -36,7 +37,12 @@ export function TrackApplicationModal({
   workEmail,
   onOpenWorkspace,
 }: TrackApplicationModalProps) {
-  const [lookupInput, setLookupInput] = useState(applicationNumber);
+  const [lookupInput, setLookupInput] = useState(
+    currentStage !== 'register' ? applicationNumber : '',
+  );
+  const [emailInput, setEmailInput] = useState(workEmail || '');
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [lookupResult, setLookupResult] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
 
@@ -54,21 +60,36 @@ export function TrackApplicationModal({
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     const normalized = lookupInput.trim().toUpperCase();
+    const cleanEmail = emailInput.trim();
     if (!normalized) {
       setLookupResult('Please enter an application number.');
       return;
     }
 
-    if (isPlatformConfigured() && workEmail) {
+    if (isPlatformConfigured()) {
+      if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+        setLookupResult('Please enter the work email used on your application.');
+        return;
+      }
+      if (!captchaToken) {
+        setLookupResult('Please complete the verification check first.');
+        return;
+      }
       setChecking(true);
       try {
-        await cygnusApi.trackApplication({ number: normalized, email: workEmail });
+        await cygnusApi.trackApplication({
+          number: normalized,
+          email: cleanEmail,
+          captchaToken,
+        });
         setLookupResult(
-          `Tracking request submitted for ${normalized}. Check ${workEmail} for your private status link.`,
+          `If ${normalized} and ${cleanEmail} match an application, we have sent a private link to your email.`,
         );
         return;
       } catch (err) {
         setLookupResult(err instanceof Error ? err.message : 'Unable to check status right now.');
+        setCaptchaToken(null);
+        setCaptchaAttempt((n) => n + 1);
         return;
       } finally {
         setChecking(false);
@@ -130,10 +151,32 @@ export function TrackApplicationModal({
                 setLookupInput(e.target.value);
                 setLookupResult(null);
               }}
-              placeholder="e.g. ZW4C-9CDM-UC84"
+              placeholder="e.g. ABCD-1234-EF56"
               className="w-full h-[40px] rounded-[9px] border border-[#c5dbd8] bg-white px-3.5 text-[14px] text-[#0f0f0f] focus:outline-none focus:border-[#008fa7] focus:ring-4 focus:ring-[#45c0b2]/15"
             />
           </div>
+
+          <div>
+            <label
+              htmlFor="track-app-email"
+              className="block text-[13px] font-medium text-[#0f0f0f] mb-1.5"
+            >
+              Work Email
+            </label>
+            <input
+              id="track-app-email"
+              type="email"
+              value={emailInput}
+              onChange={(e) => {
+                setEmailInput(e.target.value);
+                setLookupResult(null);
+              }}
+              placeholder="name@company.com"
+              className="w-full h-[40px] rounded-[9px] border border-[#c5dbd8] bg-white px-3.5 text-[14px] text-[#0f0f0f] focus:outline-none focus:border-[#008fa7] focus:ring-4 focus:ring-[#45c0b2]/15"
+            />
+          </div>
+
+          {isPlatformConfigured() && <Turnstile key={captchaAttempt} onToken={setCaptchaToken} />}
 
           <div className="rounded-[10px] bg-[#f8f8f8] border border-[#e3e3e3] p-3 text-[13px] space-y-1">
             <div className="flex justify-between gap-2">

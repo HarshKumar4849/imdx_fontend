@@ -6,6 +6,7 @@ import {
   createInitialStore,
   cygnusApi,
   imdxApi,
+  isAgentHost,
   isBackendConfigured,
   isPlatformConfigured,
   loadAdminSession,
@@ -18,9 +19,8 @@ import {
 } from './services/imdxApi';
 import type { PersistedAdminSession, PersistedUserSession } from './services/cygnusApi';
 
-const AuthModal = lazy(() =>
-  import('./components/AuthModal').then((m) => ({ default: m.AuthModal })),
-);
+import { AuthModal, AuthStandalonePage, type AuthScreenView } from './components/AuthModal';
+import { PublicPoliciesView } from './components/PublicPoliciesView';
 
 const ApplicationBanner = lazy(() =>
   import('./components/ApplicationBanner').then((m) => ({ default: m.ApplicationBanner })),
@@ -149,26 +149,262 @@ const PLAN_PRICES_INR: Record<PlanOptionId, { amountInr: number; label: string }
   'one-time': { amountInr: 599, label: 'One Time' },
 };
 
-export function App() {
-  const [appSection, setAppSection] = useState<'landing' | 'onboarding' | 'portal'>(() => {
-    if (typeof window === 'undefined') return 'landing';
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('token')) return 'onboarding';
-    if (window.location.pathname.startsWith('/admin') || window.location.pathname.startsWith('/workspace')) {
-      return 'portal';
-    }
-    return 'landing';
-  });
-  const [portalMode, setPortalMode] = useState<'workspace' | 'admin'>(() => {
-    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
-      return 'admin';
-    }
-    return 'workspace';
-  });
-  const [activeWorkspaceNav, setActiveWorkspaceNav] = useState<WorkspaceNavKey>('dashboard');
-  const [activeAdminNav, setActiveAdminNav] = useState<AdminNavKey>('dashboard');
+type AppSection = 'landing' | 'onboarding' | 'portal' | 'auth' | 'policies';
 
-  const [store, setStore] = useState<ImdxAppStore>(() => loadLocalStore());
+function resolveInitialLocation(): {
+  section: AppSection;
+  authView: AuthScreenView;
+  authMode: 'workspace' | 'admin';
+  authToken: string;
+  ssoError: boolean;
+  portalMode: 'workspace' | 'admin';
+  workspaceNav: WorkspaceNavKey;
+  adminNav: AdminNavKey;
+  policySlug?: string;
+  openTrackModal: boolean;
+} {
+  if (typeof window === 'undefined') {
+    return {
+      section: 'landing',
+      authView: 'login',
+      authMode: 'admin',
+      authToken: '',
+      ssoError: false,
+      portalMode: 'workspace',
+      workspaceNav: 'dashboard',
+      adminNav: 'dashboard',
+      openTrackModal: false,
+    };
+  }
+
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  const params = new URLSearchParams(window.location.search);
+  const hashToken = window.location.hash.replace(/^#/, '');
+  const queryToken = params.get('token') ?? '';
+  const agentHost = isAgentHost();
+  const hasUser = Boolean(loadUserSession()?.token);
+  const hasAdmin = Boolean(loadAdminSession()?.token);
+
+  if (path === '/sso' || params.get('code')) {
+    return {
+      section: 'portal',
+      authView: 'login',
+      authMode: 'workspace',
+      authToken: '',
+      ssoError: false,
+      portalMode: 'workspace',
+      workspaceNav: 'dashboard',
+      adminNav: 'dashboard',
+      openTrackModal: false,
+    };
+  }
+
+  if (path === '/set-password' || path === '/invite') {
+    return {
+      section: 'auth',
+      authView: 'set-password',
+      authMode: agentHost ? 'workspace' : 'admin',
+      authToken: hashToken || queryToken,
+      ssoError: false,
+      portalMode: 'workspace',
+      workspaceNav: 'dashboard',
+      adminNav: 'dashboard',
+      openTrackModal: false,
+    };
+  }
+
+  if (path === '/forgot-password') {
+    return {
+      section: 'auth',
+      authView: 'forgot-password',
+      authMode: agentHost ? 'workspace' : 'admin',
+      authToken: '',
+      ssoError: false,
+      portalMode: 'workspace',
+      workspaceNav: 'dashboard',
+      adminNav: 'dashboard',
+      openTrackModal: false,
+    };
+  }
+
+  if (path === '/login') {
+    if (agentHost && hasUser) {
+      return {
+        section: 'portal',
+        authView: 'login',
+        authMode: 'workspace',
+        authToken: '',
+        ssoError: false,
+        portalMode: 'workspace',
+        workspaceNav: 'dashboard',
+        adminNav: 'dashboard',
+        openTrackModal: false,
+      };
+    }
+    if (!agentHost && hasAdmin) {
+      return {
+        section: 'portal',
+        authView: 'login',
+        authMode: 'admin',
+        authToken: '',
+        ssoError: false,
+        portalMode: 'admin',
+        workspaceNav: 'dashboard',
+        adminNav: 'dashboard',
+        openTrackModal: false,
+      };
+    }
+    return {
+      section: 'auth',
+      authView: 'login',
+      authMode: agentHost ? 'workspace' : 'admin',
+      authToken: '',
+      ssoError: params.get('error') === 'sso',
+      portalMode: 'workspace',
+      workspaceNav: 'dashboard',
+      adminNav: 'dashboard',
+      openTrackModal: false,
+    };
+  }
+
+  if (path === '/apply' || path === '/application' || path === '/track' || (path === '/' && queryToken)) {
+    return {
+      section: 'onboarding',
+      authView: 'login',
+      authMode: 'workspace',
+      authToken: '',
+      ssoError: false,
+      portalMode: 'workspace',
+      workspaceNav: 'dashboard',
+      adminNav: 'dashboard',
+      openTrackModal: path === '/track',
+    };
+  }
+
+  if (path === '/policies' || path.startsWith('/policies/')) {
+    const slug = path.startsWith('/policies/') ? decodeURIComponent(path.slice('/policies/'.length)) : undefined;
+    return {
+      section: 'policies',
+      authView: 'login',
+      authMode: 'workspace',
+      authToken: '',
+      ssoError: false,
+      portalMode: 'workspace',
+      workspaceNav: 'dashboard',
+      adminNav: 'dashboard',
+      policySlug: slug || undefined,
+      openTrackModal: false,
+    };
+  }
+
+  if (path.startsWith('/admin')) {
+    let adminNav: AdminNavKey = 'dashboard';
+    if (path.includes('/participants')) adminNav = 'participants';
+    else if (path.includes('/applications')) adminNav = 'applications';
+    else if (path.includes('/policies')) adminNav = 'policies';
+    else if (path.includes('/audit') || path.includes('/verify')) adminNav = 'audit-log';
+    else if (path.includes('/purposes')) adminNav = 'purposes';
+    else if (path.includes('/capacity') || path.includes('/cluster-health')) adminNav = 'capacity';
+
+    if (isPlatformConfigured() && !hasAdmin) {
+      return {
+        section: 'auth',
+        authView: 'login',
+        authMode: 'admin',
+        authToken: '',
+        ssoError: false,
+        portalMode: 'admin',
+        workspaceNav: 'dashboard',
+        adminNav,
+        openTrackModal: false,
+      };
+    }
+    return {
+      section: 'portal',
+      authView: 'login',
+      authMode: 'admin',
+      authToken: '',
+      ssoError: false,
+      portalMode: 'admin',
+      workspaceNav: 'dashboard',
+      adminNav,
+      openTrackModal: false,
+    };
+  }
+
+  if (path.startsWith('/workspace') || (agentHost && hasUser) || path === '/datasets' || path === '/catalog' || path === '/subscriptions' || path === '/transfers' || path === '/billing' || path === '/compute' || path === '/settings') {
+    let workspaceNav: WorkspaceNavKey = 'dashboard';
+    if (path.startsWith('/datasets')) workspaceNav = 'datasets';
+    else if (path.startsWith('/catalog')) workspaceNav = 'catalog';
+    else if (path.startsWith('/subscriptions')) workspaceNav = 'subscriptions';
+    else if (path.startsWith('/transfers')) workspaceNav = 'transfers';
+    else if (path.startsWith('/billing')) workspaceNav = 'billing';
+    else if (path.startsWith('/compute')) workspaceNav = 'compute';
+    else if (path.startsWith('/settings')) workspaceNav = 'settings';
+    return {
+      section: 'portal',
+      authView: 'login',
+      authMode: 'workspace',
+      authToken: '',
+      ssoError: false,
+      portalMode: 'workspace',
+      workspaceNav,
+      adminNav: 'dashboard',
+      openTrackModal: false,
+    };
+  }
+
+  if (agentHost && !hasUser) {
+    return {
+      section: 'auth',
+      authView: 'login',
+      authMode: 'workspace',
+      authToken: '',
+      ssoError: params.get('error') === 'sso',
+      portalMode: 'workspace',
+      workspaceNav: 'dashboard',
+      adminNav: 'dashboard',
+      openTrackModal: false,
+    };
+  }
+
+  return {
+    section: 'landing',
+    authView: 'login',
+    authMode: 'admin',
+    authToken: '',
+    ssoError: false,
+    portalMode: 'workspace',
+    workspaceNav: 'dashboard',
+    adminNav: 'dashboard',
+    openTrackModal: false,
+  };
+}
+
+export function App() {
+  const [initialLoc] = useState(resolveInitialLocation);
+  const [appSection, setAppSection] = useState<AppSection>(initialLoc.section);
+  const [authView, setAuthView] = useState<AuthScreenView>(initialLoc.authView);
+  const [authInviteToken, setAuthInviteToken] = useState(initialLoc.authToken);
+  const [policySlug, setPolicySlug] = useState<string | undefined>(initialLoc.policySlug);
+  const [applyLinkSentEmail, setApplyLinkSentEmail] = useState<string | null>(null);
+  const [portalMode, setPortalMode] = useState<'workspace' | 'admin'>(initialLoc.portalMode);
+  const [activeWorkspaceNav, setActiveWorkspaceNav] = useState<WorkspaceNavKey>(initialLoc.workspaceNav);
+  const [activeAdminNav, setActiveAdminNav] = useState<AdminNavKey>(initialLoc.adminNav);
+
+  const [store, setStore] = useState<ImdxAppStore>(() => {
+    const base = loadLocalStore();
+    if (typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/apply') {
+      saveApplicationToken(null);
+      return {
+        ...base,
+        onboarding: createInitialStore().onboarding,
+        applicationStatus: 'Under Review',
+        reviewNote: '',
+      };
+    }
+    return base;
+  });
   const [liveCatalog, setLiveCatalog] = useState<CatalogOffer[] | undefined>(undefined);
   const [userSession, setUserSession] = useState<PersistedUserSession | null>(() =>
     loadUserSession(),
@@ -180,7 +416,7 @@ export function App() {
   const [apiFeedback, setApiFeedback] = useState<{ kind: 'error' | 'info'; message: string } | null>(
     null,
   );
-  const [isTrackModalOpen, setIsTrackModalOpen] = useState(false);
+  const [isTrackModalOpen, setIsTrackModalOpen] = useState(initialLoc.openTrackModal);
   const [searchQuery, setSearchQuery] = useState('');
   const [isRegisterDatasetOpen, setIsRegisterDatasetOpen] = useState(false);
 
@@ -191,15 +427,23 @@ export function App() {
     });
   };
 
-  // Handle URL magic-link token (?token=...), SSO handoff (?code=...), or deep path on mount
+  // Handle URL magic-link fragment (/application#<token>), query (?token=...), invite/set-password fragment, or SSO handoff (/sso?code=...)
   useEffect(() => {
     let active = true;
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
     const params = new URLSearchParams(window.location.search);
-    const appToken = params.get('token');
+    const hashToken = window.location.hash.replace(/^#/, '');
+    const appToken =
+      path === '/application' && hashToken ? hashToken : params.get('token');
     const ssoCode = params.get('code');
 
-    if (appToken) {
+    if (path === '/set-password' || path === '/invite') {
+      if (window.location.hash || params.get('token')) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    } else if (appToken && path !== '/invite' && path !== '/apply') {
       saveApplicationToken(appToken);
+      window.history.replaceState(null, '', window.location.pathname);
       if (isPlatformConfigured()) {
         void imdxApi
           .fetchPublicApplication(appToken, loadLocalStore().onboarding)
@@ -213,28 +457,36 @@ export function App() {
             }));
           })
           .catch((err) => {
-            if (active) reportError(err, 'Unable to load application from link token.');
+            if (active) reportError(err, 'This application link is invalid or expired. Use Track my application.');
           });
       }
-      window.history.replaceState({}, '', window.location.pathname);
     } else if (ssoCode && isPlatformConfigured()) {
+      window.history.replaceState(null, '', '/');
       void cygnusApi
         .ssoExchange(ssoCode)
-        .then((res) => {
+        .then(async (res) => {
           if (!active) return;
           const next: PersistedUserSession = {
             ...res,
             expiresAt: Date.now() + res.expiresIn * 1000,
           };
+          try {
+            const me = await cygnusApi.getOrgUserMe();
+            next.signatoryVerified = me.signatoryVerified;
+          } catch {
+            // keep SSO payload signatoryVerified value
+          }
           saveUserSession(next);
           setUserSession(next);
           setPortalMode('workspace');
           setAppSection('portal');
         })
-        .catch((err) => {
-          if (active) reportError(err, 'SSO sign-in code is invalid or expired.');
+        .catch(() => {
+          if (!active) return;
+          setAuthView('login');
+          setApiFeedback({ kind: 'error', message: 'Your sign-in link did not work. Please sign in again.' });
+          setAppSection('auth');
         });
-      window.history.replaceState({}, '', window.location.pathname);
     }
 
     return () => {
@@ -338,10 +590,11 @@ export function App() {
 
   const handleStartNewOnboarding = () => {
     saveApplicationToken(null);
+    setApplyLinkSentEmail(null);
     setApiFeedback(null);
     setStore((prev) => ({
       ...prev,
-      onboarding: structuredClone(createInitialStore().onboarding),
+      onboarding: createInitialStore().onboarding,
       applicationStatus: 'Under Review',
       reviewNote: '',
     }));
@@ -354,19 +607,20 @@ export function App() {
       handleStartNewOnboarding();
       return;
     }
+    setApplyLinkSentEmail(null);
     setAppSection('onboarding');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleStartApplication = async () => {
+  const handleStartApplication = async (captchaToken?: string): Promise<boolean> => {
     setApiFeedback(null);
     try {
-      await imdxApi.startApplication(store.onboarding.registration);
+      await imdxApi.startApplication({ ...store.onboarding.registration, captchaToken });
       if (isPlatformConfigured()) {
-        setApiFeedback({
-          kind: 'info',
-          message: `Verification link requested for ${store.onboarding.registration.workEmail}. Continuing onboarding preview.`,
-        });
+        // Real Cygnus Platform sends a private /application#<token> continuation link via email.
+        setApplyLinkSentEmail(store.onboarding.registration.workEmail.trim());
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return true;
       }
       updateOnboarding((prev) => ({
         ...prev,
@@ -382,8 +636,10 @@ export function App() {
         },
       }));
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      return true;
     } catch (err) {
       reportError(err, 'Unable to start application on Cygnus Platform.');
+      return false;
     }
   };
 
@@ -717,6 +973,11 @@ export function App() {
     setAdminSession(null);
     setLiveCatalog(undefined);
     setApiFeedback({ kind: 'info', message: 'Signed out cleanly.' });
+    if (isPlatformConfigured()) {
+      setAuthView('login');
+      setAuthInviteToken('');
+      setAppSection('auth');
+    }
   };
 
   const handleResetDemoData = () => {
@@ -733,6 +994,67 @@ export function App() {
 
   const isAuthenticated =
     portalMode === 'admin' ? Boolean(adminSession?.token) : Boolean(userSession?.token);
+
+  if (appSection === 'auth') {
+    return (
+      <>
+        <AuthStandalonePage
+          key={`${authView}-${authInviteToken}`}
+          initialMode={initialLoc.authMode}
+          initialView={authView}
+          inviteOrResetToken={authInviteToken}
+          ssoError={initialLoc.ssoError}
+          onUserSignedIn={(session) => {
+            setUserSession(session);
+            setPortalMode('workspace');
+            setAppSection('portal');
+            setApiFeedback({ kind: 'info', message: `Signed in as ${session.email}.` });
+          }}
+          onAdminSignedIn={(session) => {
+            setAdminSession(session);
+            setPortalMode('admin');
+            setAppSection('portal');
+            setApiFeedback({ kind: 'info', message: `Signed in to Governance Desk (${session.email}).` });
+          }}
+          onNavigateToApply={handleStartNewOnboarding}
+          onNavigateToTrack={() => {
+            setAppSection('onboarding');
+            setIsTrackModalOpen(true);
+          }}
+          onGoHome={() => {
+            setAppSection('landing');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
+      </>
+    );
+  }
+
+  if (appSection === 'policies') {
+    return (
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <div className="min-h-screen imdx-internal-canvas text-[#102529]">
+          <InternalBackdrop />
+          <Header
+            onLogoClick={() => {
+              setAppSection('landing');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onTrackClick={() => {
+              setAppSection('onboarding');
+              setIsTrackModalOpen(true);
+            }}
+            onOpenWorkspace={() => openWorkspace('dashboard')}
+          />
+          <PublicPoliciesView
+            slug={policySlug}
+            onSelectSlug={(nextSlug) => setPolicySlug(nextSlug)}
+            onStartOnboarding={handleStartNewOnboarding}
+          />
+        </div>
+      </Suspense>
+    );
+  }
 
   if (appSection === 'landing') {
     return (
@@ -995,6 +1317,9 @@ export function App() {
                   data={store.onboarding.registration}
                   onChange={(registration) => updateOnboarding((prev) => ({ ...prev, registration }))}
                   onSubmit={handleStartApplication}
+                  linkSentEmail={applyLinkSentEmail}
+                  onTrackApplication={() => setIsTrackModalOpen(true)}
+                  onResetLinkSent={() => setApplyLinkSentEmail(null)}
                 />
               </div>
             )}
